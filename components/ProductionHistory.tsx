@@ -43,7 +43,6 @@ const ProductionHistory: React.FC<ProductionHistoryProps> = ({ history = [], fin
     let scheduleMap: any = selectedSchedule.data || {};
     let targetMap: Record<string, number> = selectedSchedule.targets || {};
 
-    // Jika data masih berupa string (belum ter-parse di backend)
     if (typeof scheduleMap === 'string') {
       try { scheduleMap = JSON.parse(scheduleMap); } catch (e) { scheduleMap = {}; }
     }
@@ -51,25 +50,19 @@ const ProductionHistory: React.FC<ProductionHistoryProps> = ({ history = [], fin
       try { targetMap = JSON.parse(targetMap); } catch (e) { targetMap = {}; }
     }
 
-    // Ambil SEMUA ID unik yang ada di dalam record ini (baik di schedule maupun di targets)
     const scheduleIds = Object.keys(scheduleMap);
     const targetIds = Object.keys(targetMap);
-    
-    // Gabungkan semua ID unik agar tidak ada data yang terlewat
     const allRecordedIds = Array.from(new Set([...scheduleIds, ...targetIds]));
 
     return allRecordedIds.map(id => {
-      // Cari informasi produk di master data (untuk nama dan qty per batch)
       const skuInMaster = finishGoods.find(f => 
         f.id.trim().toLowerCase() === id.trim().toLowerCase() || 
         f.name.trim().toLowerCase() === id.trim().toLowerCase()
       );
 
-      // Gunakan ID sebagai nama jika tidak ditemukan di master (produk mungkin sudah dihapus)
       const displayName = skuInMaster ? skuInMaster.name : id;
       const qtyPerBatch = skuInMaster ? (skuInMaster.qtyPerBatch || 1) : 1;
       
-      // Ambil data batch harian
       const rawBatchValues = scheduleMap[id] || null;
       let dailyBatches: number[] = new Array(7).fill(0);
       if (Array.isArray(rawBatchValues)) {
@@ -101,7 +94,6 @@ const ProductionHistory: React.FC<ProductionHistoryProps> = ({ history = [], fin
         isDeleted: !skuInMaster 
       };
     })
-    // FILTER: Hanya tampilkan yang produksinya > 0 batch
     .filter(item => item.totalBatches > 0)
     .sort((a, b) => a.name.localeCompare(b.name));
   }, [selectedSchedule, finishGoods]);
@@ -233,7 +225,7 @@ const ProductionHistory: React.FC<ProductionHistoryProps> = ({ history = [], fin
                         {detailData.length === 0 ? (
                           <tr>
                             <td colSpan={10} className="px-8 py-20 text-center text-slate-400 italic">
-                              Tidak ada produksi tercatat (>0 batch) untuk periode ini.
+                              Tidak ada produksi tercatat (&gt;0 batch) untuk periode ini.
                             </td>
                           </tr>
                         ) : (
