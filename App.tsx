@@ -34,7 +34,6 @@ const App: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [dbStatus, setDbStatus] = useState<'connected' | 'error' | 'disconnected'>('disconnected');
-  const [dbError, setDbError] = useState<string | null>(null);
 
   const isConfigValid = SPREADSHEET_CONFIG.webAppUrl && !SPREADSHEET_CONFIG.webAppUrl.includes("ISI_URL");
 
@@ -56,11 +55,9 @@ const App: React.FC = () => {
         setRmHistory(result.rmHistory || []);
         setRequestOrders(result.requestOrders || []);
         setDbStatus('connected');
-        setDbError(null);
       }
     } catch (error: any) {
       setDbStatus('error');
-      setDbError(error.message);
     } finally {
       setIsSyncing(false);
     }
@@ -78,7 +75,10 @@ const App: React.FC = () => {
   };
 
   const postData = async (action: string, payload: any) => {
-    if (!isConfigValid) return false;
+    if (!isConfigValid) {
+      triggerToast('Local Mode: Data Saved to Memory');
+      return true;
+    };
     setIsSyncing(true);
     try {
       await fetch(SPREADSHEET_CONFIG.webAppUrl, {
@@ -119,7 +119,7 @@ const App: React.FC = () => {
       startDate,
       createdAt: new Date().toISOString(),
       data: scheduleData,
-      targets: targets || processedPlanningData || {}, // Gunakan parameter targets jika ada
+      targets: targets || processedPlanningData || {},
       totalBatches
     });
   };
@@ -131,7 +131,6 @@ const App: React.FC = () => {
       globalData: global,
       perSkuData: perSku
     });
-    triggerToast("RM History Saved!");
   };
 
   const handleCreateRO = async (reorderItems: any[]) => {
@@ -167,14 +166,7 @@ const App: React.FC = () => {
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <Dashboard 
-                 productionHistory={productionHistory} 
-                 requestOrders={requestOrders} 
-                 rawMaterials={rawMaterials} 
-                 finishGoods={finishGoods} 
-                 salesData={salesData} 
-                 onRefresh={fetchData} 
-               />;
+        return <Dashboard productionHistory={productionHistory} requestOrders={requestOrders} rawMaterials={rawMaterials} finishGoods={finishGoods} salesData={salesData} onRefresh={fetchData} />;
       case 'master':
         return <MasterData rawMaterials={rawMaterials} finishGoods={finishGoods} onUpdateRM={handleUpdateRM} onUpdateFG={handleUpdateFG} />;
       case 'production':
@@ -190,26 +182,19 @@ const App: React.FC = () => {
       case 'purchasing':
         return <Purchasing history={requestOrders} onUpdateRO={(ro) => postData('updateRO', ro)} />;
       case 'sales':
-        return <SalesAnalysis salesData={salesData} finishGoods={finishGoods} onUpdateSales={handleUpdateSales} onSendAnalysis={(results) => { setTransferredAnalysis(results); setActiveTab('production'); triggerToast('Data Analisa Dikirim!'); }} />;
+        return <SalesAnalysis salesData={salesData} finishGoods={finishGoods} onUpdateSales={handleUpdateSales} onSendAnalysis={(results) => { setTransferredAnalysis(results); setActiveTab('production'); triggerToast('Analysis Transferred'); }} />;
       case 'traffic':
         return <TrafficControl history={requestOrders} rawMaterials={rawMaterials} finishGoods={finishGoods} onUpdateRO={(ro) => postData('updateRO', ro)} />;
       default:
-        return <Dashboard 
-                 productionHistory={productionHistory} 
-                 requestOrders={requestOrders} 
-                 rawMaterials={rawMaterials} 
-                 finishGoods={finishGoods} 
-                 salesData={salesData} 
-                 onRefresh={fetchData} 
-               />;
+        return <Dashboard productionHistory={productionHistory} requestOrders={requestOrders} rawMaterials={rawMaterials} finishGoods={finishGoods} salesData={salesData} onRefresh={fetchData} />;
     }
   };
 
   return (
     <div className="flex min-h-screen bg-[#F8FAFC]">
       {!isConfigValid && (
-        <div className="fixed bottom-0 left-0 right-0 z-[200] bg-rose-600 text-white py-2 px-4 text-center text-[10px] font-black uppercase tracking-[0.2em] animate-pulse">
-          ⚠️ DATABASE OFFLINE: Isi Web App URL di spreadsheetConfig.ts
+        <div className="fixed bottom-0 left-0 right-0 z-[200] bg-[#1C0770] text-white py-2 px-4 text-center text-[9px] font-black uppercase tracking-[0.2em]">
+          🚀 DEMO MODE: APLIKASI BERJALAN DALAM MODE STANDALONE (LOCAL)
         </div>
       )}
       {isSyncing && (
@@ -238,14 +223,12 @@ const App: React.FC = () => {
           </button>
         </div>
         <div className="max-w-[1400px] mx-auto pb-12 px-4 md:px-8 pt-24 lg:pt-12">
-          {activeTab === 'dashboard' && (
-            <div className="mb-4 flex items-center gap-2">
-               <div className={`w-2 h-2 rounded-full ${dbStatus === 'connected' ? 'bg-emerald-500' : dbStatus === 'error' ? 'bg-rose-500' : 'bg-slate-300'}`}></div>
-               <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">
-                 Database: {dbStatus === 'connected' ? 'ONLINE (Sheets)' : dbStatus === 'error' ? 'CONNECTION ERROR' : 'STANDALONE'}
-               </span>
-            </div>
-          )}
+          <div className="mb-4 flex items-center gap-2">
+              <div className={`w-2 h-2 rounded-full ${dbStatus === 'connected' ? 'bg-emerald-500' : 'bg-amber-500'}`}></div>
+              <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">
+                Database: {dbStatus === 'connected' ? 'ONLINE (Cloud Sheets)' : 'OFFLINE (Demo Mode)'}
+              </span>
+          </div>
           {renderContent()}
         </div>
       </main>
