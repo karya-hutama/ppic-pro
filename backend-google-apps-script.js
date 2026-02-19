@@ -1,14 +1,14 @@
 
 /**
- * GOOGLE APPS SCRIPT - PPIC PRO BACKEND (REPAIR VERSION)
+ * GOOGLE APPS SCRIPT - PPIC PRO BACKEND (OPTIMIZED VERSION)
  */
 
 function doGet() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  // Jalankan pemeriksaan header otomatis setiap kali data diakses
-  checkAndFixHeaders(ss);
+  // OPTIMASI: checkAndFixHeaders hanya dijalankan manual/setup, tidak setiap kali doGet
+  // checkAndFixHeaders(ss); 
   
-  return ContentService.createTextOutput(JSON.stringify({
+  const results = {
     success: true,
     rawMaterials: getSheetData(ss, "rawMaterials"),
     finishGoods: getSheetData(ss, "finishGoods"),
@@ -16,7 +16,10 @@ function doGet() {
     productionHistory: getSheetData(ss, "productionHistory"),
     rmHistory: getSheetData(ss, "rmHistory"),
     requestOrders: getSheetData(ss, "requestOrders")
-  })).setMimeType(ContentService.MimeType.JSON);
+  };
+
+  return ContentService.createTextOutput(JSON.stringify(results))
+    .setMimeType(ContentService.MimeType.JSON);
 }
 
 function doPost(e) {
@@ -30,58 +33,55 @@ function doPost(e) {
   
   const action = data.action;
   
+  // Optimasi: Cache sheet references
   if (action === "saveSchedule") {
-    const sheet = getOrCreateSheet(ss, "productionHistory");
-    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn() || 6).getValues()[0];
-    
-    // Pastikan kolom targets dan data ada di posisi yang benar
-    const idIdx = headers.indexOf("id");
-    const dataIdx = headers.indexOf("data");
-    const startIdx = headers.indexOf("startDate");
-    const createIdx = headers.indexOf("createdAt");
-    const totalIdx = headers.indexOf("totalBatches");
-    const targetIdx = headers.indexOf("targets");
-
-    const rowData = new Array(Math.max(headers.length, 6)).fill("");
-    if (idIdx !== -1) rowData[idIdx] = Utilities.getUuid();
-    if (dataIdx !== -1) rowData[dataIdx] = JSON.stringify(data.data);
-    if (startIdx !== -1) rowData[startIdx] = data.startDate;
-    if (createIdx !== -1) rowData[createIdx] = data.createdAt;
-    if (totalIdx !== -1) rowData[totalIdx] = data.totalBatches;
-    if (targetIdx !== -1) rowData[targetIdx] = JSON.stringify(data.targets || {});
-    
-    sheet.appendRow(rowData);
+    const sheet = ss.getSheetByName("productionHistory");
+    sheet.appendRow([
+      Utilities.getUuid(), 
+      JSON.stringify(data.data), 
+      data.startDate, 
+      data.createdAt, 
+      data.totalBatches, 
+      JSON.stringify(data.targets || {})
+    ]);
   }
   
-  // Action lainnya...
   if (action === "syncMasterRM") {
-    const sheet = getOrCreateSheet(ss, "rawMaterials");
+    const sheet = ss.getSheetByName("rawMaterials");
     sheet.clear();
     sheet.appendRow(["id", "name", "usageUnit", "purchaseUnit", "conversionFactor", "stock", "minStock", "pricePerPurchaseUnit", "leadTime", "isProcessed", "sourceMaterialId", "processingYield"]);
-    data.data.forEach(rm => sheet.appendRow([rm.id, rm.name, rm.usageUnit, rm.purchaseUnit, rm.conversionFactor, rm.stock, rm.minStock, rm.pricePerPurchaseUnit, rm.leadTime, rm.isProcessed, rm.sourceMaterialId, rm.processingYield]));
+    const rows = data.data.map(rm => [rm.id, rm.name, rm.usageUnit, rm.purchaseUnit, rm.conversionFactor, rm.stock, rm.minStock, rm.pricePerPurchaseUnit, rm.leadTime, rm.isProcessed, rm.sourceMaterialId, rm.processingYield]);
+    if (rows.length > 0) sheet.getRange(2, 1, rows.length, rows[0].length).setValues(rows);
   }
+
   if (action === "syncMasterFG") {
-    const sheet = getOrCreateSheet(ss, "finishGoods");
+    const sheet = ss.getSheetByName("finishGoods");
     sheet.clear();
     sheet.appendRow(["id", "name", "qtyPerBatch", "stock", "hpp", "isProductionReady", "ingredients"]);
-    data.data.forEach(fg => sheet.appendRow([fg.id, fg.name, fg.qtyPerBatch, fg.stock, fg.hpp || 0, fg.isProductionReady || false, JSON.stringify(fg.ingredients || [])]));
+    const rows = data.data.map(fg => [fg.id, fg.name, fg.qtyPerBatch, fg.stock, fg.hpp || 0, fg.isProductionReady || false, JSON.stringify(fg.ingredients || [])]);
+    if (rows.length > 0) sheet.getRange(2, 1, rows.length, rows[0].length).setValues(rows);
   }
+
   if (action === "syncSales") {
-    const sheet = getOrCreateSheet(ss, "salesData");
+    const sheet = ss.getSheetByName("salesData");
     sheet.clear();
     sheet.appendRow(["id", "skuId", "date", "quantitySold"]);
-    data.data.forEach(s => sheet.appendRow([s.id, s.skuId, s.date, s.quantitySold]));
+    const rows = data.data.map(s => [s.id, s.skuId, s.date, s.quantitySold]);
+    if (rows.length > 0) sheet.getRange(2, 1, rows.length, rows[0].length).setValues(rows);
   }
+
   if (action === "saveRMRequirement") {
-    const sheet = getOrCreateSheet(ss, "rmHistory");
+    const sheet = ss.getSheetByName("rmHistory");
     sheet.appendRow([Utilities.getUuid(), data.startDate, data.createdAt, JSON.stringify(data.globalData), JSON.stringify(data.perSkuData)]);
   }
+
   if (action === "createRO") {
-    const sheet = getOrCreateSheet(ss, "requestOrders");
+    const sheet = ss.getSheetByName("requestOrders");
     sheet.appendRow([data.id, data.date, JSON.stringify(data.items), data.status, data.deadline, data.createdAt]);
   }
+
   if (action === "updateRO") {
-    const sheet = getOrCreateSheet(ss, "requestOrders");
+    const sheet = ss.getSheetByName("requestOrders");
     const vals = sheet.getDataRange().getValues();
     for (let i = 1; i < vals.length; i++) {
       if (vals[i][0] === data.id) {
@@ -99,37 +99,29 @@ function doPost(e) {
 function getSheetData(ss, name) {
   const sheet = ss.getSheetByName(name);
   if (!sheet) return [];
-  const range = sheet.getDataRange();
-  const vals = range.getValues();
+  const vals = sheet.getDataRange().getValues();
   if (vals.length < 2) return [];
   const headers = vals.shift();
   
   return vals.map(row => {
     const obj = {};
     headers.forEach((h, i) => {
-      if (!h) return; // Lewati kolom tanpa nama header
+      if (!h) return;
       let val = row[i];
-      let headerKey = h.toString().trim();
-      
-      // Fallback pemetaan kunci
-      if (headerKey === "JSONData") headerKey = "data";
-      if (headerKey === "JSONTargets") headerKey = "targets";
-      
-      const isJsonField = ["ingredients", "data", "items", "globalData", "perSkuData", "targets"].includes(headerKey);
-      
-      if (isJsonField && typeof val === 'string' && val !== "") {
+      let key = h.toString().trim();
+      if (["ingredients", "data", "items", "globalData", "perSkuData", "targets"].includes(key) && typeof val === 'string' && val !== "") {
         try { val = JSON.parse(val); } catch(e) { val = {}; }
       }
-      if (val instanceof Date) {
-        val = Utilities.formatDate(val, ss.getSpreadsheetTimeZone(), "yyyy-MM-dd");
-      }
-      obj[headerKey] = val;
+      if (val instanceof Date) val = Utilities.formatDate(val, ss.getSpreadsheetTimeZone(), "yyyy-MM-dd");
+      obj[key] = val;
     });
     return obj;
   });
 }
 
-function checkAndFixHeaders(ss) {
+// Fungsi ini hanya dijalankan sekali saja saat setup awal
+function setupSpreadsheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
   const config = {
     "rawMaterials": ["id", "name", "usageUnit", "purchaseUnit", "conversionFactor", "stock", "minStock", "pricePerPurchaseUnit", "leadTime", "isProcessed", "sourceMaterialId", "processingYield"],
     "finishGoods": ["id", "name", "qtyPerBatch", "stock", "hpp", "isProductionReady", "ingredients"],
@@ -138,29 +130,8 @@ function checkAndFixHeaders(ss) {
     "rmHistory": ["id", "startDate", "createdAt", "globalData", "perSkuData"],
     "requestOrders": ["id", "date", "items", "status", "deadline", "createdAt"]
   };
-
-  for (let sheetName in config) {
-    let sheet = ss.getSheetByName(sheetName);
-    if (!sheet) {
-      sheet = ss.insertSheet(sheetName);
-      sheet.appendRow(config[sheetName]);
-    } else {
-      const currentHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn() || config[sheetName].length).getValues()[0];
-      const isHeaderBroken = currentHeaders.some((h, i) => !h || h !== config[sheetName][i]);
-      
-      if (isHeaderBroken) {
-        // Jika header rusak (seperti di screenshot user), sisipkan baris baru di paling atas atau timpa baris 1
-        sheet.getRange(1, 1, 1, config[sheetName].length).setValues([config[sheetName]]);
-      }
-    }
+  for (let name in config) {
+    let sheet = ss.getSheetByName(name) || ss.insertSheet(name);
+    sheet.getRange(1, 1, 1, config[name].length).setValues([config[name]]);
   }
-}
-
-function getOrCreateSheet(ss, name) {
-  let sheet = ss.getSheetByName(name);
-  if (!sheet) {
-    sheet = ss.insertSheet(name);
-    // Header akan dibuat di checkAndFixHeaders
-  }
-  return sheet;
 }

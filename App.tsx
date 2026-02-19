@@ -37,14 +37,13 @@ const App: React.FC = () => {
 
   const isConfigValid = SPREADSHEET_CONFIG.webAppUrl && !SPREADSHEET_CONFIG.webAppUrl.includes("ISI_URL");
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (silent = false) => {
     if (!isConfigValid) return;
-    setIsSyncing(true);
+    if (!silent) setIsSyncing(true);
     try {
       const response = await fetch(SPREADSHEET_CONFIG.webAppUrl, {
         method: 'GET',
-        cache: 'no-store',
-        mode: 'cors'
+        cache: 'no-store'
       });
       const result = await response.json();
       if (result.success) {
@@ -65,47 +64,51 @@ const App: React.FC = () => {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, SPREADSHEET_CONFIG.pollInterval);
+    const interval = setInterval(() => fetchData(true), SPREADSHEET_CONFIG.pollInterval);
     return () => clearInterval(interval);
   }, [fetchData]);
 
   const triggerToast = (msg: string, type: 'success' | 'error' = 'success') => {
     setShowSuccessToast({show: true, msg, type});
-    setTimeout(() => setShowSuccessToast({show: false, msg: '', type: 'success'}), 3000);
+    setTimeout(() => setShowSuccessToast({show: false, msg: '', type: 'success'}), 2000);
   };
 
   const postData = async (action: string, payload: any) => {
     if (!isConfigValid) {
-      triggerToast('Local Mode: Data Saved to Memory');
+      triggerToast('Local Mode: Data Saved');
       return true;
     };
+    
+    // Background sync
     setIsSyncing(true);
     try {
-      await fetch(SPREADSHEET_CONFIG.webAppUrl, {
+      fetch(SPREADSHEET_CONFIG.webAppUrl, {
         method: 'POST',
         mode: 'no-cors', 
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({ action, ...payload }),
+      }).then(() => {
+        setIsSyncing(false);
+        // Silent refresh after post
+        setTimeout(() => fetchData(true), 1000);
       });
-      triggerToast('Synced to Cloud');
-      setTimeout(fetchData, 1500);
       return true;
     } catch (e: any) {
-      triggerToast('Sync Error', 'error');
-      return false;
-    } finally {
       setIsSyncing(false);
+      triggerToast('Sync Delayed', 'error');
+      return false;
     }
   };
 
   const handleUpdateRM = (newRM: RawMaterial[]) => {
-    setRawMaterials(newRM);
+    setRawMaterials(newRM); // Optimistic Update
     postData('syncMasterRM', { data: newRM });
+    triggerToast('Material Diperbarui');
   };
 
   const handleUpdateFG = (newFG: FinishGood[]) => {
-    setFinishGoods(newFG);
+    setFinishGoods(newFG); // Optimistic Update
     postData('syncMasterFG', { data: newFG });
+    triggerToast('SKU Diperbarui');
   };
 
   const handleUpdateSales = (newSales: SalesData[]) => {
@@ -115,22 +118,31 @@ const App: React.FC = () => {
 
   const handleSaveSchedule = async (scheduleData: Record<string, number[]>, startDate: string, targets?: Record<string, number>) => {
     const totalBatches = Object.values(scheduleData).reduce((acc, days) => acc + days.reduce((a, b) => a + b, 0), 0);
-    await postData('saveSchedule', {
+    const newEntry: SavedSchedule = {
+      id: `SCH-${Date.now()}`,
       startDate,
       createdAt: new Date().toISOString(),
       data: scheduleData,
       targets: targets || processedPlanningData || {},
       totalBatches
-    });
+    };
+    
+    setProductionHistory([newEntry, ...productionHistory]); // Optimistic
+    postData('saveSchedule', newEntry);
+    triggerToast('Jadwal Disimpan');
   };
 
   const handleSaveRMHistory = async (global: Record<string, number>, perSku: Record<string, Record<string, number>>, startDate: string) => {
-    await postData('saveRMRequirement', {
+    const newEntry: SavedRMRequirement = {
+      id: `RMH-${Date.now()}`,
       startDate,
       createdAt: new Date().toISOString(),
       globalData: global,
       perSkuData: perSku
-    });
+    };
+    setRmHistory([newEntry, ...rmHistory]); // Optimistic
+    postData('saveRMRequirement', newEntry);
+    triggerToast('Kebutuhan RM Diarsipkan');
   };
 
   const handleCreateRO = async (reorderItems: any[]) => {
@@ -152,21 +164,25 @@ const App: React.FC = () => {
     
     if (items.length === 0) return;
 
-    await postData('createRO', {
+    const newRO: RequestOrder = {
       id: `RO-${Date.now().toString().slice(-6)}`,
       date: new Date().toISOString().split('T')[0],
       createdAt: new Date().toISOString(),
       deadline: new Date(Date.now() + 3*24*60*60*1000).toISOString().split('T')[0],
       items: items,
       status: 'Draft'
-    });
+    };
+
+    setRequestOrders([newRO, ...requestOrders]); // Optimistic
+    postData('createRO', newRO);
     setActiveTab('purchasing');
+    triggerToast('Request Order Dibuat');
   };
 
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <Dashboard productionHistory={productionHistory} requestOrders={requestOrders} rawMaterials={rawMaterials} finishGoods={finishGoods} salesData={salesData} onRefresh={fetchData} />;
+        return <Dashboard productionHistory={productionHistory} requestOrders={requestOrders} rawMaterials={rawMaterials} finishGoods={finishGoods} salesData={salesData} onRefresh={() => fetchData(false)} />;
       case 'master':
         return <MasterData rawMaterials={rawMaterials} finishGoods={finishGoods} onUpdateRM={handleUpdateRM} onUpdateFG={handleUpdateFG} />;
       case 'production':
@@ -180,13 +196,19 @@ const App: React.FC = () => {
       case 'rmHistory':
         return <RMHistory history={rmHistory} rawMaterials={rawMaterials} finishGoods={finishGoods} />;
       case 'purchasing':
-        return <Purchasing history={requestOrders} onUpdateRO={(ro) => postData('updateRO', ro)} />;
+        return <Purchasing history={requestOrders} onUpdateRO={(ro) => {
+          setRequestOrders(requestOrders.map(r => r.id === ro.id ? ro : r)); // Optimistic
+          postData('updateRO', ro);
+        }} />;
       case 'sales':
-        return <SalesAnalysis salesData={salesData} finishGoods={finishGoods} onUpdateSales={handleUpdateSales} onSendAnalysis={(results) => { setTransferredAnalysis(results); setActiveTab('production'); triggerToast('Analysis Transferred'); }} />;
+        return <SalesAnalysis salesData={salesData} finishGoods={finishGoods} onUpdateSales={handleUpdateSales} onSendAnalysis={(results) => { setTransferredAnalysis(results); setActiveTab('production'); triggerToast('Analisa Berhasil'); }} />;
       case 'traffic':
-        return <TrafficControl history={requestOrders} rawMaterials={rawMaterials} finishGoods={finishGoods} onUpdateRO={(ro) => postData('updateRO', ro)} />;
+        return <TrafficControl history={requestOrders} rawMaterials={rawMaterials} finishGoods={finishGoods} onUpdateRO={(ro) => {
+          setRequestOrders(requestOrders.map(r => r.id === ro.id ? ro : r)); // Optimistic
+          postData('updateRO', ro);
+        }} />;
       default:
-        return <Dashboard productionHistory={productionHistory} requestOrders={requestOrders} rawMaterials={rawMaterials} finishGoods={finishGoods} salesData={salesData} onRefresh={fetchData} />;
+        return <Dashboard productionHistory={productionHistory} requestOrders={requestOrders} rawMaterials={rawMaterials} finishGoods={finishGoods} salesData={salesData} onRefresh={() => fetchData(false)} />;
     }
   };
 
@@ -198,18 +220,16 @@ const App: React.FC = () => {
         </div>
       )}
       {isSyncing && (
-        <div className="fixed top-6 right-6 z-[120] flex items-center gap-3 bg-white/90 backdrop-blur-md px-5 py-2.5 rounded-full border border-slate-100 shadow-2xl">
-           <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-ping"></div>
+        <div className="fixed top-6 right-6 z-[120] flex items-center gap-3 bg-white/90 backdrop-blur-md px-5 py-2.5 rounded-full border border-slate-100 shadow-2xl animate-pulse">
+           <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full"></div>
            <span className="text-[10px] font-black uppercase text-[#1C0770] tracking-[0.2em]">Syncing...</span>
         </div>
       )}
       {showSuccessToast.show && (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center pointer-events-none p-4 animate-in zoom-in-95">
-          <div className={`${showSuccessToast.type === 'error' ? 'bg-rose-600' : 'bg-[#1C0770]'} text-white px-8 py-6 rounded-[32px] shadow-2xl flex flex-col items-center gap-4 text-center border border-white/10 backdrop-blur-md`}>
-            <div className={`w-16 h-16 ${showSuccessToast.type === 'error' ? 'bg-rose-400' : 'bg-emerald-500'} rounded-full flex items-center justify-center text-3xl`}>
-              {showSuccessToast.type === 'error' ? '✕' : '✓'}
-            </div>
-            <h3 className="text-lg font-bold">{showSuccessToast.msg}</h3>
+        <div className="fixed bottom-8 right-8 z-[150] animate-in slide-in-from-bottom-4">
+          <div className={`${showSuccessToast.type === 'error' ? 'bg-rose-600' : 'bg-[#1C0770]'} text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 border border-white/10`}>
+            <span>{showSuccessToast.type === 'error' ? '✕' : '✓'}</span>
+            <h3 className="text-xs font-bold">{showSuccessToast.msg}</h3>
           </div>
         </div>
       )}
