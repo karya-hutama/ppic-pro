@@ -1,5 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
+import * as XLSX from 'xlsx';
 import { RawMaterial, FinishGood } from '../types';
 
 const DAYS_NAME = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
@@ -152,6 +153,42 @@ const ScheduledProduction: React.FC<ScheduledProductionProps> = ({
     }
   };
 
+  const handleDownloadExcel = () => {
+    const globalDataToExport: any[] = [];
+    Object.entries(rmNeeds.global || {}).forEach(([id, amount]) => {
+      const rm = rawMaterials.find(m => m.id === id);
+      globalDataToExport.push({
+        'Nama Barang': rm?.name || id,
+        'Total Requirement': Math.ceil(amount),
+        'Unit': rm?.usageUnit || ''
+      });
+    });
+
+    const perSkuDataToExport: any[] = [];
+    Object.entries(rmNeeds.perSku || {}).forEach(([skuId, needs]) => {
+      const sku = activeFinishGoods.find(s => s.id === skuId);
+      Object.entries(needs || {}).forEach(([rmId, amount]) => {
+        const rm = rawMaterials.find(m => m.id === rmId);
+        perSkuDataToExport.push({
+          'SKU': sku?.name || skuId,
+          'Raw Material': rm?.name || rmId,
+          'Qty': amount,
+          'Unit': rm?.usageUnit || ''
+        });
+      });
+    });
+
+    const workbook = XLSX.utils.book_new();
+    
+    const globalWorksheet = XLSX.utils.json_to_sheet(globalDataToExport);
+    XLSX.utils.book_append_sheet(workbook, globalWorksheet, "Global Needs");
+
+    const perSkuWorksheet = XLSX.utils.json_to_sheet(perSkuDataToExport);
+    XLSX.utils.book_append_sheet(workbook, perSkuWorksheet, "Per SKU Needs");
+
+    XLSX.writeFile(workbook, `Kebutuhan_Bahan_Baku_${startDate}.xlsx`);
+  };
+
   return (
     <div className="py-6 space-y-10 animate-in fade-in duration-500 overflow-x-hidden">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
@@ -276,6 +313,12 @@ const ScheduledProduction: React.FC<ScheduledProductionProps> = ({
                 </div>
              </div>
              <div className="flex gap-4">
+                <button 
+                  onClick={handleDownloadExcel}
+                  className="px-6 py-4 bg-emerald-500 text-white rounded-2xl font-black uppercase text-[10px] hover:bg-emerald-600 transition-all shadow-sm flex items-center gap-2"
+                >
+                  <span>📥</span> Download Excel
+                </button>
                 <button 
                   onClick={() => onSaveRMHistory?.(rmNeeds.global, rmNeeds.perSku, startDate)}
                   className="px-6 py-4 bg-slate-100 text-slate-500 rounded-2xl font-black uppercase text-[10px] hover:bg-slate-200 transition-all"
