@@ -1,5 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
+import * as XLSX from 'xlsx';
 import { SavedRMRequirement, RawMaterial, FinishGood } from '../types';
 
 interface RMHistoryProps {
@@ -11,6 +12,27 @@ interface RMHistoryProps {
 const RMHistory: React.FC<RMHistoryProps> = ({ history = [], rawMaterials = [], finishGoods = [] }) => {
   const [selectedReq, setSelectedReq] = useState<SavedRMRequirement | null>(null);
 
+  const handleDownloadExcel = () => {
+    const dataToExport: any[] = [];
+
+    history.forEach(item => {
+      Object.entries(item.globalData || {}).forEach(([rmId, amount]) => {
+        const rm = rawMaterials.find(m => m.id === rmId);
+        dataToExport.push({
+          'No Request Order': item.id,
+          'Tanggal Request Order': new Date(item.createdAt).toLocaleDateString('id-ID'),
+          'Raw Materials': rm?.name || rmId,
+          'Qty': amount
+        });
+      });
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "RM_History");
+    XLSX.writeFile(workbook, "RM_History.xlsx");
+  };
+
   return (
     <div className="p-4 md:p-8 space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
@@ -18,6 +40,12 @@ const RMHistory: React.FC<RMHistoryProps> = ({ history = [], rawMaterials = [], 
           <h1 className="text-3xl font-bold text-slate-900 tracking-tight">History Raw Material Needs</h1>
           <p className="text-slate-500 mt-1 text-sm font-medium italic">Arsip perhitungan logistik mingguan</p>
         </div>
+        <button 
+          onClick={handleDownloadExcel}
+          className="px-6 py-3 bg-emerald-500 text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-emerald-600 transition-all shadow-sm flex items-center gap-2"
+        >
+          <span>📥</span> Download Excel
+        </button>
       </div>
 
       <div className="grid grid-cols-1 gap-4">
