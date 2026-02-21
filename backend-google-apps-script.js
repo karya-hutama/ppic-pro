@@ -37,13 +37,28 @@ function doPost(e) {
   if (action === "saveSchedule") {
     const sheet = ss.getSheetByName("productionHistory");
     sheet.appendRow([
-      Utilities.getUuid(), 
+      data.id || Utilities.getUuid(), 
       JSON.stringify(data.data), 
       data.startDate, 
       data.createdAt, 
       data.totalBatches, 
       JSON.stringify(data.targets || {})
     ]);
+  }
+
+  if (action === "updateSchedule") {
+    const sheet = ss.getSheetByName("productionHistory");
+    const vals = sheet.getDataRange().getValues();
+    for (let i = 1; i < vals.length; i++) {
+      if (vals[i][0] === data.id) {
+        sheet.getRange(i + 1, 2).setValue(JSON.stringify(data.data));
+        sheet.getRange(i + 1, 3).setValue(data.startDate);
+        sheet.getRange(i + 1, 4).setValue(data.createdAt);
+        sheet.getRange(i + 1, 5).setValue(data.totalBatches);
+        sheet.getRange(i + 1, 6).setValue(JSON.stringify(data.targets || {}));
+        break;
+      }
+    }
   }
   
   if (action === "syncMasterRM") {

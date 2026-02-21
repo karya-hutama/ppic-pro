@@ -129,11 +129,11 @@ const App: React.FC = () => {
     };
     
     if (existingId) {
-      setProductionHistory(productionHistory.map(h => h.id === existingId ? newEntry : h));
+      setProductionHistory(prev => prev.map(h => h.id === existingId ? newEntry : h));
       postData('updateSchedule', newEntry);
       triggerToast('Jadwal Diperbarui');
     } else {
-      setProductionHistory([newEntry, ...productionHistory]); // Optimistic
+      setProductionHistory(prev => [newEntry, ...prev]); // Optimistic
       postData('saveSchedule', newEntry);
       triggerToast('Jadwal Disimpan');
     }

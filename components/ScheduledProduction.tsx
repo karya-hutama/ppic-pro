@@ -83,6 +83,13 @@ const ScheduledProduction: React.FC<ScheduledProductionProps> = ({
         });
         return next;
       });
+    } else {
+      // Reset to empty schedule when not editing
+      const reset: Record<string, number[]> = {};
+      activeFinishGoods.forEach(sku => {
+        reset[sku.id] = new Array(7).fill(0);
+      });
+      setSchedule(reset);
     }
   }, [initialSchedule, activeFinishGoods]);
 
