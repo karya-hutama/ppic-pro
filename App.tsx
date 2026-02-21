@@ -207,6 +207,7 @@ const App: React.FC = () => {
         />;
       case 'schedule':
         return <ScheduledProduction 
+          key={editingSchedule?.id || 'new-plan'}
           finishGoods={finishGoods} 
           rawMaterials={rawMaterials} 
           initialPlannedBatches={editingSchedule ? editingSchedule.targets : processedPlanningData} 

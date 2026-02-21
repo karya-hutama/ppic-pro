@@ -70,28 +70,20 @@ const ScheduledProduction: React.FC<ScheduledProductionProps> = ({
     if (initialStartDate) setStartDate(initialStartDate);
   }, [initialStartDate]);
 
+  // Only add missing SKUs to the schedule state, don't overwrite existing ones
   useEffect(() => {
-    if (initialSchedule) {
-      setSchedule(prev => {
-        const next = { ...prev };
-        activeFinishGoods.forEach(sku => {
-          if (initialSchedule[sku.id]) {
-            next[sku.id] = [...initialSchedule[sku.id]];
-          } else if (!next[sku.id]) {
-            next[sku.id] = new Array(7).fill(0);
-          }
-        });
-        return next;
-      });
-    } else {
-      // Reset to empty schedule when not editing
-      const reset: Record<string, number[]> = {};
+    setSchedule(prev => {
+      const next = { ...prev };
+      let hasNewSku = false;
       activeFinishGoods.forEach(sku => {
-        reset[sku.id] = new Array(7).fill(0);
+        if (!next[sku.id]) {
+          next[sku.id] = new Array(7).fill(0);
+          hasNewSku = true;
+        }
       });
-      setSchedule(reset);
-    }
-  }, [initialSchedule, activeFinishGoods]);
+      return hasNewSku ? next : prev;
+    });
+  }, [activeFinishGoods]);
 
   const scheduleDates = useMemo(() => {
     const dates = [];
