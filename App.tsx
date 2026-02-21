@@ -29,6 +29,7 @@ const App: React.FC = () => {
   const [peakDayRecommendations, setPeakDayRecommendations] = useState<Record<string, number>>({});
   const [syncedROPRequirements, setSyncedROPRequirements] = useState<any[]>([]);
   const [transferredAnalysis, setTransferredAnalysis] = useState<any[] | null>(null);
+  const [editingSchedule, setEditingSchedule] = useState<SavedSchedule | null>(null);
   
   const [showSuccessToast, setShowSuccessToast] = useState<{show: boolean, msg: string, type?: 'success' | 'error'}>({show: false, msg: ''});
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -116,10 +117,10 @@ const App: React.FC = () => {
     postData('syncSales', { data: newSales });
   };
 
-  const handleSaveSchedule = async (scheduleData: Record<string, number[]>, startDate: string, targets?: Record<string, number>) => {
+  const handleSaveSchedule = async (scheduleData: Record<string, number[]>, startDate: string, targets?: Record<string, number>, existingId?: string) => {
     const totalBatches = Object.values(scheduleData).reduce((acc, days) => acc + days.reduce((a, b) => a + b, 0), 0);
     const newEntry: SavedSchedule = {
-      id: `SCH-${Date.now()}`,
+      id: existingId || `SCH-${Date.now()}`,
       startDate,
       createdAt: new Date().toISOString(),
       data: scheduleData,
@@ -127,9 +128,16 @@ const App: React.FC = () => {
       totalBatches
     };
     
-    setProductionHistory([newEntry, ...productionHistory]); // Optimistic
-    postData('saveSchedule', newEntry);
-    triggerToast('Jadwal Disimpan');
+    if (existingId) {
+      setProductionHistory(productionHistory.map(h => h.id === existingId ? newEntry : h));
+      postData('updateSchedule', newEntry);
+      triggerToast('Jadwal Diperbarui');
+    } else {
+      setProductionHistory([newEntry, ...productionHistory]); // Optimistic
+      postData('saveSchedule', newEntry);
+      triggerToast('Jadwal Disimpan');
+    }
+    setEditingSchedule(null);
   };
 
   const handleSaveRMHistory = async (global: Record<string, number>, perSku: Record<string, Record<string, number>>, startDate: string) => {
@@ -186,13 +194,42 @@ const App: React.FC = () => {
       case 'master':
         return <MasterData rawMaterials={rawMaterials} finishGoods={finishGoods} onUpdateRM={handleUpdateRM} onUpdateFG={handleUpdateFG} />;
       case 'production':
-        return <ProductionPlanning finishGoods={finishGoods} salesData={salesData} transferredAnalysis={transferredAnalysis} onProcess={(data, recs) => { setProcessedPlanningData(data); if(recs) setPeakDayRecommendations(recs); setActiveTab('schedule'); }} />;
+        return <ProductionPlanning 
+          finishGoods={finishGoods} 
+          salesData={salesData} 
+          transferredAnalysis={transferredAnalysis} 
+          onProcess={(data, recs) => { 
+            setEditingSchedule(null); // Clear editing state when starting new plan
+            setProcessedPlanningData(data); 
+            if(recs) setPeakDayRecommendations(recs); 
+            setActiveTab('schedule'); 
+          }} 
+        />;
       case 'schedule':
-        return <ScheduledProduction finishGoods={finishGoods} rawMaterials={rawMaterials} initialPlannedBatches={processedPlanningData} peakDayRecommendations={peakDayRecommendations} transferredAnalysis={transferredAnalysis} onSave={handleSaveSchedule} onSaveRMHistory={handleSaveRMHistory} onSyncToROP={(reqs) => { setSyncedROPRequirements(reqs); setActiveTab('rop'); }} />;
+        return <ScheduledProduction 
+          finishGoods={finishGoods} 
+          rawMaterials={rawMaterials} 
+          initialPlannedBatches={editingSchedule ? editingSchedule.targets : processedPlanningData} 
+          initialSchedule={editingSchedule ? editingSchedule.data : undefined}
+          initialStartDate={editingSchedule ? editingSchedule.startDate : undefined}
+          existingId={editingSchedule ? editingSchedule.id : undefined}
+          peakDayRecommendations={peakDayRecommendations} 
+          transferredAnalysis={transferredAnalysis} 
+          onSave={handleSaveSchedule} 
+          onSaveRMHistory={handleSaveRMHistory} 
+          onSyncToROP={(reqs) => { setSyncedROPRequirements(reqs); setActiveTab('rop'); }} 
+        />;
       case 'rop':
         return <InventoryROP syncedRequirements={syncedROPRequirements} onCreateRO={handleCreateRO} />;
       case 'history':
-        return <ProductionHistory history={productionHistory} finishGoods={finishGoods} />;
+        return <ProductionHistory 
+          history={productionHistory} 
+          finishGoods={finishGoods} 
+          onEdit={(schedule) => {
+            setEditingSchedule(schedule);
+            setActiveTab('schedule');
+          }}
+        />;
       case 'rmHistory':
         return <RMHistory history={rmHistory} rawMaterials={rawMaterials} finishGoods={finishGoods} />;
       case 'purchasing':
@@ -233,7 +270,15 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+      <Sidebar 
+        activeTab={activeTab} 
+        setActiveTab={(tab) => {
+          if (tab !== 'schedule') setEditingSchedule(null);
+          setActiveTab(tab);
+        }} 
+        isOpen={isSidebarOpen} 
+        onClose={() => setIsSidebarOpen(false)} 
+      />
       <main className="flex-1 lg:ml-64 min-h-screen relative overflow-x-hidden">
         <div className="lg:hidden fixed top-6 left-6 z-30">
           <button onClick={() => setIsSidebarOpen(true)} className="p-4 bg-[#1C0770] text-white rounded-2xl shadow-xl">

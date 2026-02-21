@@ -9,9 +9,10 @@ const DAYS = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
 interface ProductionHistoryProps {
   history: SavedSchedule[];
   finishGoods: FinishGood[];
+  onEdit?: (schedule: SavedSchedule) => void;
 }
 
-const ProductionHistory: React.FC<ProductionHistoryProps> = ({ history = [], finishGoods = [] }) => {
+const ProductionHistory: React.FC<ProductionHistoryProps> = ({ history = [], finishGoods = [], onEdit }) => {
   const [selectedSchedule, setSelectedSchedule] = useState<SavedSchedule | null>(null);
   const [detailTab, setDetailTab] = useState<'batch' | 'output'>('batch');
   
@@ -199,6 +200,17 @@ const ProductionHistory: React.FC<ProductionHistoryProps> = ({ history = [], fin
                 </div>
               </div>
               <div className="flex items-center gap-3 w-full md:w-auto">
+                <button 
+                  onClick={() => {
+                    if (onEdit && selectedSchedule) {
+                      onEdit(selectedSchedule);
+                      setSelectedSchedule(null);
+                    }
+                  }} 
+                  className="flex-1 px-6 py-4 bg-amber-500 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 hover:bg-amber-600 shadow-lg"
+                >
+                  <span>✏️</span> Ubah Jadwal
+                </button>
                 <button onClick={handleDownloadPDF} className="flex-1 px-6 py-4 bg-emerald-600 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 hover:bg-emerald-700 shadow-lg"><span>📥</span> Download PDF</button>
                 <button onClick={() => setSelectedSchedule(null)} className="px-6 py-4 bg-slate-100 text-slate-500 rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-slate-200 transition-colors">Close</button>
               </div>

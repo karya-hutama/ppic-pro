@@ -9,9 +9,12 @@ interface ScheduledProductionProps {
   finishGoods: FinishGood[];
   rawMaterials: RawMaterial[];
   initialPlannedBatches?: Record<string, number> | null;
+  initialSchedule?: Record<string, number[]>;
+  initialStartDate?: string;
+  existingId?: string;
   peakDayRecommendations?: Record<string, number>;
   transferredAnalysis?: any[] | null;
-  onSave?: (schedule: Record<string, number[]>, startDate: string, targets: Record<string, number>) => void;
+  onSave?: (schedule: Record<string, number[]>, startDate: string, targets: Record<string, number>, existingId?: string) => void;
   onSaveRMHistory?: (global: Record<string, number>, perSku: Record<string, Record<string, number>>, startDate: string) => void;
   onSyncToROP?: (requirements: any[]) => void;
 }
@@ -20,6 +23,9 @@ const ScheduledProduction: React.FC<ScheduledProductionProps> = ({
   finishGoods = [], 
   rawMaterials = [], 
   initialPlannedBatches,
+  initialSchedule,
+  initialStartDate,
+  existingId,
   peakDayRecommendations = {},
   transferredAnalysis = [],
   onSave,
@@ -28,6 +34,7 @@ const ScheduledProduction: React.FC<ScheduledProductionProps> = ({
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'schedule' | 'rm-needs'>('schedule');
   const [startDate, setStartDate] = useState(() => {
+    if (initialStartDate) return initialStartDate;
     const d = new Date();
     const year = d.getFullYear();
     const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -40,6 +47,18 @@ const ScheduledProduction: React.FC<ScheduledProductionProps> = ({
   }, [finishGoods]);
 
   const [schedule, setSchedule] = useState<Record<string, number[]>>(() => {
+    if (initialSchedule) {
+      // Ensure we have a deep copy and all active SKUs are present
+      const initial: Record<string, number[]> = {};
+      activeFinishGoods.forEach(sku => {
+        if (initialSchedule[sku.id]) {
+          initial[sku.id] = [...initialSchedule[sku.id]];
+        } else {
+          initial[sku.id] = new Array(7).fill(0);
+        }
+      });
+      return initial;
+    }
     const initial: Record<string, number[]> = {};
     activeFinishGoods.forEach(sku => {
       initial[sku.id] = new Array(7).fill(0);
@@ -48,14 +67,24 @@ const ScheduledProduction: React.FC<ScheduledProductionProps> = ({
   });
 
   useEffect(() => {
-    setSchedule(prev => {
-      const next = { ...prev };
-      activeFinishGoods.forEach(sku => {
-        if (!next[sku.id]) next[sku.id] = new Array(7).fill(0);
+    if (initialStartDate) setStartDate(initialStartDate);
+  }, [initialStartDate]);
+
+  useEffect(() => {
+    if (initialSchedule) {
+      setSchedule(prev => {
+        const next = { ...prev };
+        activeFinishGoods.forEach(sku => {
+          if (initialSchedule[sku.id]) {
+            next[sku.id] = [...initialSchedule[sku.id]];
+          } else if (!next[sku.id]) {
+            next[sku.id] = new Array(7).fill(0);
+          }
+        });
+        return next;
       });
-      return next;
-    });
-  }, [activeFinishGoods]);
+    }
+  }, [initialSchedule, activeFinishGoods]);
 
   const scheduleDates = useMemo(() => {
     const dates = [];
@@ -149,7 +178,7 @@ const ScheduledProduction: React.FC<ScheduledProductionProps> = ({
     if (onSave) {
       // Pastikan target dikirimkan secara eksplisit dari initialPlannedBatches
       const currentTargets = initialPlannedBatches || {};
-      onSave(schedule, startDate, currentTargets);
+      onSave(schedule, startDate, currentTargets, existingId);
     }
   };
 
@@ -193,7 +222,14 @@ const ScheduledProduction: React.FC<ScheduledProductionProps> = ({
     <div className="py-6 space-y-10 animate-in fade-in duration-500 overflow-x-hidden">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
-          <h1 className="text-3xl font-black text-slate-900 uppercase tracking-tight">Perencanaan Produksi</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-black text-slate-900 uppercase tracking-tight">Perencanaan Produksi</h1>
+            {existingId && (
+              <span className="px-3 py-1 bg-amber-100 text-amber-600 text-[10px] font-black uppercase rounded-lg border border-amber-200 animate-pulse">
+                Mode Ubah Jadwal
+              </span>
+            )}
+          </div>
           <p className="text-slate-500 mt-1 text-sm font-medium">Atur jadwal dan hitung kebutuhan logistik.</p>
         </div>
         
