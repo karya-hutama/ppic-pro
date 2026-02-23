@@ -277,39 +277,46 @@ const ScheduledProduction: React.FC<ScheduledProductionProps> = ({
           </div>
 
           <div className="bg-white rounded-[40px] shadow-sm border border-slate-100 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left min-w-[1200px]">
-                <thead className="bg-slate-50/50 text-[9px] uppercase font-black text-slate-400 border-b border-slate-100">
-                  <tr>
-                    <th className="px-10 py-6 border-r border-slate-100 bg-white sticky left-0 z-20">Product SKU</th>
-                    <th className="px-4 py-6 text-center border-r border-slate-100">SOH</th>
-                    <th className="px-4 py-6 text-center border-r border-slate-100">Days Out</th>
-                    <th className="px-4 py-6 text-center border-r border-slate-100">Target</th>
+            <div className="overflow-auto max-h-[70vh] custom-scrollbar">
+              <table className="w-full text-left min-w-[1400px] border-separate border-spacing-0">
+                <thead className="bg-slate-50 uppercase font-black text-slate-400 sticky top-0 z-30 shadow-sm">
+                  <tr className="text-[9px]">
+                    <th className="px-10 py-6 border-r border-slate-100 bg-slate-50 sticky left-0 z-40 border-b">Product SKU</th>
+                    <th className="px-4 py-6 text-center border-r border-slate-100 bg-slate-50 sticky left-[200px] z-40 border-b w-[80px]">SOH</th>
+                    <th className="px-4 py-6 text-center border-r border-slate-100 bg-slate-50 sticky left-[280px] z-40 border-b w-[80px]">Days Out</th>
+                    <th className="px-4 py-6 text-center border-r border-slate-100 bg-slate-50 sticky left-[360px] z-40 border-b w-[80px]">Target</th>
                     {scheduleDates.map((dateObj, idx) => (
-                      <th key={idx} className="px-1 py-5 text-center border-r border-slate-100 min-w-[120px]">
+                      <th key={idx} className="px-1 py-5 text-center border-r border-slate-100 min-w-[120px] border-b">
                         <div className="text-[#1C0770] mb-0.5">{dateObj.dayName}</div>
                         <div className="text-[8px] opacity-60">{dateObj.formatted}</div>
                       </th>
                     ))}
-                    <th className="px-4 py-5 text-center border-r border-slate-100 font-black text-[#1C0770]">Total</th>
+                    <th className="px-4 py-5 text-center border-r border-slate-100 font-black text-[#1C0770] border-b">Total</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {outputData.map(({ sku, targetBatch, scheduledBatch, daysToOut }) => {
                     const peakDayIdx = peakDayRecommendations[sku.id];
+                    
+                    // Conditional coloring logic for Total
+                    let totalColorClass = "text-slate-900";
+                    if (scheduledBatch > targetBatch) totalColorClass = "text-amber-600";
+                    else if (scheduledBatch === targetBatch && targetBatch > 0) totalColorClass = "text-emerald-600";
+                    else if (scheduledBatch < targetBatch) totalColorClass = "text-rose-600";
+
                     return (
                       <tr key={sku.id} className="hover:bg-slate-50/40">
-                        <td className="px-10 py-6 border-r border-slate-100 font-black text-slate-800 bg-white sticky left-0 z-10">
-                          <div className="text-xs">{sku.name}</div>
+                        <td className="px-10 py-6 border-r border-slate-100 font-black text-slate-800 bg-white sticky left-0 z-10 w-[200px]">
+                          <div className="text-xs truncate max-w-[160px]">{sku.name}</div>
                           <div className="text-[8px] text-slate-400 font-bold mt-0.5">{sku.id}</div>
                         </td>
-                        <td className="px-4 py-6 text-center border-r border-slate-100 bg-slate-50/10 text-slate-600 font-bold">
+                        <td className="px-4 py-6 text-center border-r border-slate-100 bg-white sticky left-[200px] z-10 text-slate-600 font-bold w-[80px]">
                           {sku.stock.toLocaleString()}
                         </td>
-                        <td className={`px-4 py-6 text-center border-r border-slate-100 font-black ${daysToOut < 2 ? 'text-rose-600' : 'text-slate-400'}`}>
+                        <td className={`px-4 py-6 text-center border-r border-slate-100 font-black bg-white sticky left-[280px] z-10 w-[80px] ${daysToOut < 2 ? 'text-rose-600' : 'text-slate-400'}`}>
                           {daysToOut === Infinity ? '∞' : daysToOut.toFixed(1)}H
                         </td>
-                        <td className="px-4 py-6 text-center border-r border-slate-100 bg-slate-50/30 text-slate-400 font-bold">
+                        <td className="px-4 py-6 text-center border-r border-slate-100 bg-slate-50/30 text-slate-400 font-bold sticky left-[360px] z-10 w-[80px]">
                           {targetBatch}
                         </td>
                         {scheduleDates.map((dateObj, dayRelIdx) => {
@@ -326,7 +333,7 @@ const ScheduledProduction: React.FC<ScheduledProductionProps> = ({
                             </td>
                           );
                         })}
-                        <td className="px-4 py-6 text-center border-r border-slate-100 font-black text-[#1C0770]">
+                        <td className={`px-4 py-6 text-center border-r border-slate-100 font-black text-lg ${totalColorClass}`}>
                           {scheduledBatch}
                         </td>
                       </tr>

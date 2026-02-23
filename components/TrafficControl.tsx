@@ -18,6 +18,31 @@ const TrafficControl: React.FC<TrafficControlProps> = ({
   const [activeSubTab, setActiveSubTab] = useState<'fg' | 'rm' | 'tracing' | 'partial-history'>('fg');
   const [showReceiveModal, setShowReceiveModal] = useState<{ roId: string, itemIdx: number } | null>(null);
   const [receiveQty, setReceiveQty] = useState<number>(0);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
+
+  const toggleOrderExpansion = (id: string) => {
+    setExpandedOrders(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  // Helper untuk memastikan kita selalu mendapatkan array items
+  const getItems = (ro: any) => {
+    if (Array.isArray(ro.items)) return ro.items;
+    if (typeof ro.items === 'string' && ro.items !== "") {
+      try { return JSON.parse(ro.items); } catch(e) { return []; }
+    }
+    const fallback = ro.JSONItems || (ro as any).jsonItems;
+    if (Array.isArray(fallback)) return fallback;
+    if (typeof fallback === 'string' && fallback !== "") {
+      try { return JSON.parse(fallback); } catch(e) { return []; }
+    }
+    return [];
+  };
   
   // Filter states for Tracing Tab
   const [tracingStart, setTracingStart] = useState('');
@@ -31,6 +56,17 @@ const TrafficControl: React.FC<TrafficControlProps> = ({
   const [actualOrderDate, setActualOrderDate] = useState('');
   const [estimatedArrival, setEstimatedArrival] = useState('');
   const [actualArrivalDate, setActualArrivalDate] = useState(new Date().toISOString().split('T')[0]);
+
+  // Helper untuk normalisasi tanggal ke YYYY-MM-DD local (agar sinkron dengan UI)
+  const normalizeDate = (dateStr: string) => {
+    if (!dateStr) return "";
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr.split('T')[0];
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
 
   // 1. Perhitungan Statistik Inventori Akurat
   const stats = useMemo(() => {
@@ -52,25 +88,58 @@ const TrafficControl: React.FC<TrafficControlProps> = ({
     };
   }, [rawMaterials, finishGoods]);
 
-  // 2. Filter RO Aktif dengan Date Range
+  // 2. Filter RO Aktif dengan Date Range & Search
   const filteredActiveOrders = useMemo(() => {
+    const lowerSearch = searchTerm.toLowerCase();
     return (history || []).filter(ro => {
-      if (ro.status !== 'Sent' && ro.status !== 'Completed') return false;
-      if (tracingStart && ro.date < tracingStart) return false;
-      if (tracingEnd && ro.date > tracingEnd) return false;
+      // Jika ada pencarian, abaikan filter status sementara agar user bisa menemukan apa yang mereka cari
+      // Namun jika tidak ada pencarian, tetap tampilkan yang Sent/Completed saja untuk Tracing
+      const isTracingStatus = ro.status === 'Sent' || ro.status === 'Completed';
+      
+      if (!searchTerm && !isTracingStatus) return false;
+      
+      const roDateOnly = normalizeDate(ro.date);
+      if (tracingStart && roDateOnly < tracingStart) return false;
+      if (tracingEnd && roDateOnly > tracingEnd) return false;
+      
+      const items = getItems(ro);
+      if (searchTerm) {
+        const matchesId = ro.id.toLowerCase().includes(lowerSearch);
+        const matchesStatus = ro.status.toLowerCase().includes(lowerSearch);
+        const matchesItems = items.some((item: any) => 
+          item.materialName.toLowerCase().includes(lowerSearch) ||
+          (item.materialId && item.materialId.toLowerCase().includes(lowerSearch))
+        );
+        
+        if (!matchesId && !matchesItems && !matchesStatus) return false;
+      } else {
+        // Jika tidak ada search, pastikan hanya tampilkan yang statusnya sesuai tracing
+        if (!isTracingStatus) return false;
+      }
+      
       return true;
     });
-  }, [history, tracingStart, tracingEnd]);
+  }, [history, tracingStart, tracingEnd, searchTerm]);
 
-  // 3. Flatten All Deliveries for Partial History Tab
+  // 3. Flatten All Deliveries for Partial History Tab with Search
   const allDeliveries = useMemo(() => {
     const list: any[] = [];
+    const lowerSearch = searchTerm.toLowerCase();
+
     (history || []).forEach(ro => {
-      (ro.items || []).forEach(item => {
+      const items = getItems(ro);
+      items.forEach((item: any) => {
         if (item.deliveries) {
-          (item.deliveries || []).forEach(del => {
-            if (historyStart && del.date < historyStart) return;
-            if (historyEnd && del.date > historyEnd) return;
+          (item.deliveries || []).forEach((del: any) => {
+            const delDateOnly = normalizeDate(del.date);
+            if (historyStart && delDateOnly < historyStart) return;
+            if (historyEnd && delDateOnly > historyEnd) return;
+            
+            const matchesId = ro.id.toLowerCase().includes(lowerSearch);
+            const matchesMaterial = item.materialName.toLowerCase().includes(lowerSearch);
+            
+            if (searchTerm && !matchesId && !matchesMaterial) return;
+
             list.push({
               ...del,
               roId: ro.id,
@@ -82,11 +151,31 @@ const TrafficControl: React.FC<TrafficControlProps> = ({
       });
     });
     return list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [history, historyStart, historyEnd]);
+  }, [history, historyStart, historyEnd, searchTerm]);
+
+  // 4. Filtered Master Data for Tabs
+  const filteredFG = useMemo(() => {
+    const lowerSearch = searchTerm.toLowerCase();
+    return (finishGoods || []).filter(fg => 
+      fg.name.toLowerCase().includes(lowerSearch) || 
+      fg.id.toLowerCase().includes(lowerSearch)
+    );
+  }, [finishGoods, searchTerm]);
+
+  const filteredRM = useMemo(() => {
+    const lowerSearch = searchTerm.toLowerCase();
+    return (rawMaterials || []).filter(rm => 
+      !rm.isProcessed && (
+        rm.name.toLowerCase().includes(lowerSearch) || 
+        rm.id.toLowerCase().includes(lowerSearch)
+      )
+    );
+  }, [rawMaterials, searchTerm]);
 
   const handleOpenReceiveModal = (roId: string, itemIdx: number) => {
     const ro = history.find(h => h.id === roId);
-    const item = ro?.items?.[itemIdx];
+    const items = getItems(ro);
+    const item = items[itemIdx];
     if (item) {
       setActualOrderDate(item.actualOrderDate || ro?.date || '');
       setEstimatedArrival(item.estimatedArrival || ro?.deadline || '');
@@ -100,9 +189,10 @@ const TrafficControl: React.FC<TrafficControlProps> = ({
     if (!showReceiveModal || receiveQty <= 0) return;
 
     const ro = history.find(h => h.id === showReceiveModal.roId);
-    if (!ro || !ro.items) return;
+    if (!ro) return;
 
-    const updatedItems = [...ro.items];
+    const items = getItems(ro);
+    const updatedItems = [...items];
     const item = { ...updatedItems[showReceiveModal.itemIdx] };
     
     const newDelivery: DeliveryBatch = {
@@ -121,7 +211,7 @@ const TrafficControl: React.FC<TrafficControlProps> = ({
     item.status = item.receivedQuantity >= targetQty ? 'Received' : 'Partial';
 
     updatedItems[showReceiveModal.itemIdx] = item;
-    const allReceived = updatedItems.every(i => i.status === 'Received');
+    const allReceived = updatedItems.every((i: any) => i.status === 'Received');
     
     const updatedRO: RequestOrder = {
       ...ro,
@@ -150,25 +240,40 @@ const TrafficControl: React.FC<TrafficControlProps> = ({
         </div>
       </div>
 
-      <div className="flex bg-white p-2 rounded-[28px] border border-slate-100 shadow-sm w-fit overflow-x-auto no-scrollbar">
-        {[
-          { id: 'fg', label: 'Finish Goods', icon: '📦' },
-          { id: 'rm', label: 'Raw Materials', icon: '🧪' },
-          { id: 'tracing', label: 'Tracing PO / RO', icon: '🚚' },
-          { id: 'partial-history', label: 'Riwayat Parsial', icon: '📋' },
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveSubTab(tab.id as any)}
-            className={`px-6 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest flex items-center gap-3 transition-all whitespace-nowrap ${
-              activeSubTab === tab.id 
-                ? 'bg-[#1C0770] text-white shadow-lg shadow-indigo-200 scale-105' 
-                : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
-            }`}
-          >
-            <span>{tab.icon}</span> {tab.label}
-          </button>
-        ))}
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
+        <div className="flex bg-white p-2 rounded-[28px] border border-slate-100 shadow-sm w-fit overflow-x-auto no-scrollbar">
+          {[
+            { id: 'fg', label: 'Finish Goods', icon: '📦' },
+            { id: 'rm', label: 'Raw Materials', icon: '🧪' },
+            { id: 'tracing', label: 'Tracing PO / RO', icon: '🚚' },
+            { id: 'partial-history', label: 'Riwayat Parsial', icon: '📋' },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveSubTab(tab.id as any)}
+              className={`px-6 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest flex items-center gap-3 transition-all whitespace-nowrap ${
+                activeSubTab === tab.id 
+                  ? 'bg-[#1C0770] text-white shadow-lg shadow-indigo-200 scale-105' 
+                  : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              <span>{tab.icon}</span> {tab.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="relative w-full lg:w-80">
+          <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+            <span className="text-slate-400">🔍</span>
+          </div>
+          <input 
+            type="text" 
+            placeholder="Cari SKU, Material, atau Order ID..." 
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-12 pr-6 py-4 bg-white border border-slate-100 rounded-[24px] text-sm font-bold text-slate-700 outline-none focus:ring-4 ring-indigo-50/50 transition-all shadow-sm"
+          />
+        </div>
       </div>
 
       <div className="space-y-8">
@@ -195,7 +300,7 @@ const TrafficControl: React.FC<TrafficControlProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {(finishGoods || []).map(fg => (
+                  {filteredFG.map(fg => (
                     <tr key={fg.id} className="hover:bg-slate-50/50 transition-colors">
                       <td className="px-10 py-6">
                         <div className="font-bold text-slate-800">{fg.name}</div>
@@ -240,7 +345,7 @@ const TrafficControl: React.FC<TrafficControlProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {(rawMaterials || []).filter(m => !m.isProcessed).map(rm => {
+                  {filteredRM.map(rm => {
                     const unitPrice = (rm.pricePerPurchaseUnit || 0) / (rm.conversionFactor || 1);
                     return (
                       <tr key={rm.id} className="hover:bg-slate-50/50 transition-colors">
@@ -300,63 +405,77 @@ const TrafficControl: React.FC<TrafficControlProps> = ({
                              </div>
                           </div>
                        </div>
-                       <div className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border ${ro.status === 'Completed' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-blue-50 text-blue-600 border-blue-100'}`}>
-                          {ro.status === 'Sent' ? '📦 On Delivery / Partial' : '✅ Received All'}
+                       <div className="flex items-center gap-4">
+                          <button 
+                            onClick={() => toggleOrderExpansion(ro.id)}
+                            className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${
+                              expandedOrders.has(ro.id) 
+                                ? 'bg-slate-800 text-white border-slate-800' 
+                                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                            }`}
+                          >
+                             {expandedOrders.has(ro.id) ? '🔼 Sembunyikan Detail' : '🔽 Tampilkan Order'}
+                          </button>
+                          <div className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border ${ro.status === 'Completed' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : ro.status === 'Sent' ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
+                             {ro.status === 'Sent' ? '📦 On Delivery / Partial' : ro.status === 'Completed' ? '✅ Received All' : `🕒 ${ro.status}`}
+                          </div>
                        </div>
                     </div>
 
-                    <div className="p-10 space-y-8">
-                       {(ro.items || []).map((item, idx) => {
-                         const targetQty = item.actualOrderQty || item.quantity || 0;
-                         const progress = targetQty > 0 ? ((item.receivedQuantity || 0) / targetQty) * 100 : 0;
-                         const isLate = ro.deadline && item.estimatedArrival && new Date(item.estimatedArrival) > new Date(ro.deadline);
+                    {expandedOrders.has(ro.id) && (
+                       <div className="p-10 space-y-8 animate-in slide-in-from-top-2 duration-300">
+                          {getItems(ro).map((item: any, idx: number) => {
+                            const targetQty = item.actualOrderQty || item.quantity || 0;
+                            const progress = targetQty > 0 ? ((item.receivedQuantity || 0) / targetQty) * 100 : 0;
+                            const isLate = ro.deadline && item.estimatedArrival && new Date(item.estimatedArrival) > new Date(ro.deadline);
 
-                         return (
-                           <div key={idx} className="bg-slate-50/30 rounded-[32px] p-8 border border-slate-100">
-                              <div className="flex flex-col lg:flex-row gap-10 items-center">
-                                 <div className="flex-1 w-full space-y-4">
-                                    <div className="flex justify-between items-end">
-                                       <div>
-                                          <h5 className="font-black text-slate-800 text-lg tracking-tight">{item.materialName}</h5>
-                                          <div className={`text-[10px] font-bold uppercase mt-1 ${isLate ? 'text-rose-500 underline' : 'text-slate-400'}`}>
-                                            ETA: {item.estimatedArrival ? new Date(item.estimatedArrival).toLocaleDateString('id-ID') : '-'}
-                                            {isLate && <span className="ml-2">⚠️ LATE FROM DEADLINE</span>}
+                            return (
+                              <div key={idx} className="bg-slate-50/30 rounded-[32px] p-8 border border-slate-100">
+                                 <div className="flex flex-col lg:flex-row gap-10 items-center">
+                                    <div className="flex-1 w-full space-y-4">
+                                       <div className="flex justify-between items-end">
+                                          <div>
+                                             <h5 className="font-black text-slate-800 text-lg tracking-tight">{item.materialName}</h5>
+                                             <div className={`text-[10px] font-bold uppercase mt-1 ${isLate ? 'text-rose-500 underline' : 'text-slate-400'}`}>
+                                               ETA: {item.estimatedArrival ? new Date(item.estimatedArrival).toLocaleDateString('id-ID') : '-'}
+                                               {isLate && <span className="ml-2">⚠️ LATE FROM DEADLINE</span>}
+                                             </div>
+                                          </div>
+                                          <div className="text-right">
+                                             <span className="text-2xl font-black text-[#1C0770]">{(item.receivedQuantity || 0).toLocaleString()}</span>
+                                             <span className="text-xs font-bold text-slate-300 ml-1">/{targetQty.toLocaleString()} {item.unit}</span>
                                           </div>
                                        </div>
-                                       <div className="text-right">
-                                          <span className="text-2xl font-black text-[#1C0770]">{(item.receivedQuantity || 0).toLocaleString()}</span>
-                                          <span className="text-xs font-bold text-slate-300 ml-1">/{targetQty.toLocaleString()} {item.unit}</span>
+                                       
+                                       <div className="w-full bg-slate-200 h-4 rounded-full overflow-hidden shadow-inner">
+                                          <div 
+                                            className={`h-full transition-all duration-1000 ease-out flex items-center justify-end px-3 ${progress >= 100 ? 'bg-emerald-500' : 'bg-[#1C0770]'}`}
+                                            style={{ width: `${Math.min(progress, 100)}%` }}
+                                          >
+                                             {progress > 15 && <span className="text-[8px] font-black text-white/40">{Math.round(progress)}%</span>}
+                                          </div>
                                        </div>
                                     </div>
-                                    
-                                    <div className="w-full bg-slate-200 h-4 rounded-full overflow-hidden shadow-inner">
-                                       <div 
-                                         className={`h-full transition-all duration-1000 ease-out flex items-center justify-end px-3 ${progress >= 100 ? 'bg-emerald-500' : 'bg-[#1C0770]'}`}
-                                         style={{ width: `${Math.min(progress, 100)}%` }}
-                                       >
-                                          {progress > 15 && <span className="text-[8px] font-black text-white/40">{Math.round(progress)}%</span>}
-                                       </div>
-                                    </div>
-                                 </div>
 
-                                 <div className="shrink-0 w-full lg:w-48">
-                                    <button 
-                                      disabled={(item.receivedQuantity || 0) >= targetQty}
-                                      onClick={() => handleOpenReceiveModal(ro.id, idx)}
-                                      className={`w-full py-5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg ${
-                                        (item.receivedQuantity || 0) >= targetQty 
-                                          ? 'bg-slate-100 text-slate-300 cursor-not-allowed' 
-                                          : 'bg-[#1C0770] text-white hover:scale-105 active:scale-95'
-                                      }`}
-                                    >
-                                       {(item.receivedQuantity || 0) >= targetQty ? '✅ Terpenuhi' : '📥 Input Batch'}
-                                    </button>
+                                    <div className="shrink-0 w-full lg:w-48">
+                                       <button 
+                                         disabled={(item.receivedQuantity || 0) >= targetQty}
+                                         onClick={() => handleOpenReceiveModal(ro.id, idx)}
+                                         className={`w-full py-5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg ${
+                                           (item.receivedQuantity || 0) >= targetQty 
+                                             ? 'bg-slate-100 text-slate-300 cursor-not-allowed' 
+                                             : 'bg-[#1C0770] text-white hover:scale-105 active:scale-95'
+                                         }`}
+                                       >
+                                          {(item.receivedQuantity || 0) >= targetQty ? '✅ Terpenuhi' : '📥 Input Batch'}
+                                       </button>
+                                    </div>
                                  </div>
                               </div>
-                           </div>
-                         );
-                       })}
-                    </div>
+                            );
+                          })}
+                       </div>
+                    )}
                  </div>
                ))
              )}

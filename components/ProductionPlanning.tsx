@@ -146,19 +146,19 @@ const ProductionPlanning: React.FC<ProductionPlanningProps> = ({
       </div>
 
       <div className="bg-white rounded-[40px] shadow-sm border border-slate-100 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left min-w-[1300px]">
-            <thead className="bg-slate-50/50 text-[10px] uppercase font-black text-slate-400 border-b border-slate-100">
-              <tr>
-                <th className="px-10 py-6 sticky left-0 bg-slate-50 z-20">Product SKU</th>
-                <th className="px-4 py-6 text-center border-x border-slate-100/50">SOH</th>
-                <th className="px-4 py-6 text-center">Days to Out</th>
-                <th className="px-4 py-6 text-center">Rata-rata Sales</th>
-                <th className="px-4 py-6 text-center">Penjualan Tertinggi</th>
-                <th className="px-4 py-6 text-center bg-indigo-50/20">Sales Request</th>
-                <th className="px-4 py-6 text-center font-black text-slate-900 bg-amber-50/20">Final Target</th>
-                <th className="px-4 py-6 text-center font-black text-emerald-700 bg-emerald-50/20">Estimasi Stok</th>
-                <th className="px-10 py-6 text-right font-black text-[#1C0770]">Batch to Produce</th>
+        <div className="overflow-auto max-h-[70vh] custom-scrollbar">
+          <table className="w-full text-left min-w-[1300px] border-separate border-spacing-0">
+            <thead className="bg-slate-50 uppercase font-black text-slate-400 sticky top-0 z-30 shadow-sm">
+              <tr className="text-[10px]">
+                <th className="px-10 py-6 sticky left-0 bg-slate-50 z-40 border-b border-slate-100">Product SKU</th>
+                <th className="px-4 py-6 text-center border-b border-slate-100">SOH</th>
+                <th className="px-4 py-6 text-center border-b border-slate-100">Days to Out</th>
+                <th className="px-4 py-6 text-center border-b border-slate-100">Rata-rata Sales</th>
+                <th className="px-4 py-6 text-center border-b border-slate-100">Penjualan Tertinggi</th>
+                <th className="px-4 py-6 text-center bg-indigo-50/20 border-b border-slate-100">Sales Request</th>
+                <th className="px-4 py-6 text-center font-black text-slate-900 bg-amber-50/20 border-b border-slate-100">Final Target</th>
+                <th className="px-4 py-6 text-center font-black text-emerald-700 bg-emerald-50/20 border-b border-slate-100">Estimasi Stok</th>
+                <th className="px-10 py-6 text-right font-black text-[#1C0770] border-b border-slate-100">Batch to Produce</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
