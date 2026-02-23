@@ -33,6 +33,42 @@ const RMHistory: React.FC<RMHistoryProps> = ({ history = [], rawMaterials = [], 
     XLSX.writeFile(workbook, "RM_History.xlsx");
   };
 
+  const handleDownloadSingleExcel = (req: SavedRMRequirement) => {
+    const dataToExport: any[] = [];
+    
+    // Global Summary
+    Object.entries(req.globalData || {}).forEach(([rmId, amount]) => {
+      const rm = rawMaterials.find(m => m.id === rmId);
+      dataToExport.push({
+        'Category': 'GLOBAL SUMMARY',
+        'Product/SKU': '-',
+        'Material Name': rm?.name || rmId,
+        'Quantity': amount,
+        'Unit': rm?.usageUnit || '-'
+      });
+    });
+
+    // Per SKU Breakdown
+    Object.entries(req.perSkuData || {}).forEach(([skuId, needs]) => {
+      const sku = finishGoods.find(s => s.id === skuId);
+      Object.entries(needs || {}).forEach(([rmId, amount]) => {
+        const rm = rawMaterials.find(m => m.id === rmId);
+        dataToExport.push({
+          'Category': 'PER SKU BREAKDOWN',
+          'Product/SKU': sku?.name || skuId,
+          'Material Name': rm?.name || rmId,
+          'Quantity': amount,
+          'Unit': rm?.usageUnit || '-'
+        });
+      });
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Detail_Kebutuhan_RM");
+    XLSX.writeFile(workbook, `Kebutuhan_RM_${req.id}.xlsx`);
+  };
+
   return (
     <div className="p-4 md:p-8 space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
@@ -92,7 +128,15 @@ const RMHistory: React.FC<RMHistoryProps> = ({ history = [], rawMaterials = [], 
                       <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Periode Produksi: {new Date(selectedReq.startDate).toLocaleDateString('id-ID', {day: 'numeric', month: 'long', year: 'numeric'})}</p>
                    </div>
                 </div>
-                <button onClick={() => setSelectedReq(null)} className="px-6 py-4 bg-slate-100 text-slate-500 rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-slate-200">Close</button>
+                <div className="flex items-center gap-3">
+                   <button 
+                     onClick={() => handleDownloadSingleExcel(selectedReq)}
+                     className="px-6 py-4 bg-emerald-500 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-emerald-600 flex items-center gap-2 shadow-lg shadow-emerald-100 transition-all"
+                   >
+                     <span>📥</span> Export Excel
+                   </button>
+                   <button onClick={() => setSelectedReq(null)} className="px-6 py-4 bg-slate-100 text-slate-500 rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-slate-200">Close</button>
+                </div>
              </div>
 
              <div className="flex-1 overflow-y-auto custom-scrollbar p-10 space-y-12">
