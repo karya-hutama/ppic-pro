@@ -163,9 +163,9 @@ const Dashboard: React.FC<DashboardProps> = ({
           <p className="text-slate-500 mt-1 text-sm font-medium italic">Monitoring operasional bakso profesional</p>
         </div>
         
-        <div className="flex items-center gap-3 bg-white p-3 rounded-[28px] border border-slate-100 shadow-sm">
-           <div className="flex items-center px-4 gap-3 border-r border-slate-100">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filter Periode</span>
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-white p-3 rounded-[28px] border border-slate-100 shadow-sm w-full md:w-auto overflow-x-auto">
+           <div className="flex flex-col sm:flex-row items-start sm:items-center px-4 gap-3 border-b sm:border-b-0 sm:border-r border-slate-100 pb-3 sm:pb-0">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Filter Periode</span>
               <div className="flex items-center gap-2">
                  <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="text-xs font-bold text-[#1C0770] bg-transparent outline-none" />
                  <span className="text-slate-300">→</span>
@@ -175,7 +175,7 @@ const Dashboard: React.FC<DashboardProps> = ({
            {/* Perbaikan di sini: Menggunakan callback onRefresh daripada reload halaman */}
            <button 
              onClick={() => onRefresh ? onRefresh() : window.location.reload()} 
-             className="px-5 py-2.5 bg-[#1C0770] text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all active:scale-95"
+             className="px-5 py-2.5 bg-[#1C0770] text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all active:scale-95 w-full sm:w-auto"
            >
              Refresh
            </button>

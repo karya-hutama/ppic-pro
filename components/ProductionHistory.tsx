@@ -217,9 +217,9 @@ const ProductionHistory: React.FC<ProductionHistoryProps> = ({ history = [], fin
             </div>
 
             <div className="flex-1 overflow-y-auto custom-scrollbar p-6 md:p-10 space-y-10">
-              <div className="flex bg-slate-100 p-1.5 rounded-2xl w-fit">
-                <button onClick={() => setDetailTab('batch')} className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${detailTab === 'batch' ? 'bg-white text-[#1C0770] shadow-sm' : 'text-slate-400'}`}>Input Batch</button>
-                <button onClick={() => setDetailTab('output')} className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${detailTab === 'output' ? 'bg-white text-[#1C0770] shadow-sm' : 'text-slate-400'}`}>Hasil Output (Packs)</button>
+              <div className="flex bg-slate-100 p-1.5 rounded-2xl w-full sm:w-fit overflow-x-auto no-scrollbar">
+                <button onClick={() => setDetailTab('batch')} className={`flex-1 sm:flex-none px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${detailTab === 'batch' ? 'bg-white text-[#1C0770] shadow-sm' : 'text-slate-400'}`}>Input Batch</button>
+                <button onClick={() => setDetailTab('output')} className={`flex-1 sm:flex-none px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${detailTab === 'output' ? 'bg-white text-[#1C0770] shadow-sm' : 'text-slate-400'}`}>Hasil Output (Packs)</button>
               </div>
 
               <div className="border border-slate-100 rounded-3xl overflow-hidden shadow-sm">

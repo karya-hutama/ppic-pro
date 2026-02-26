@@ -216,7 +216,7 @@ const SalesAnalysis: React.FC<SalesAnalysisProps> = ({ salesData, finishGoods, o
 
       <div className="bg-white rounded-[40px] shadow-sm border border-slate-100 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left">
+          <table className="w-full text-left min-w-[800px]">
             <thead className="bg-slate-50/50 text-[10px] uppercase font-black text-slate-400 border-b border-slate-100">
               <tr>
                 <th className="px-10 py-6">Product SKU</th>

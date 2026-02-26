@@ -256,31 +256,33 @@ const Purchasing: React.FC<PurchasingProps> = ({ history = [], onUpdateRO }) => 
                   </div>
                </div>
 
-               <table className="w-full text-left">
-                  <thead className="bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100">
-                    <tr>
-                      <th className="px-6 py-4">Material Name</th>
-                      <th className="px-6 py-4 text-center">Volume Pesanan</th>
-                      <th className="px-6 py-4 text-center">Status Item</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50">
-                    {getItems(selectedRO).map((item: any, idx: number) => (
-                      <tr key={idx} className="hover:bg-slate-50/30 transition-colors">
-                        <td className="px-6 py-5">
-                          <div className="font-bold text-slate-800">{item.materialName}</div>
-                          <div className="text-[10px] text-slate-400 font-mono mt-1">{item.materialId}</div>
-                        </td>
-                        <td className="px-6 py-5 text-center font-black text-[#1C0770]">
-                          {(item.quantity || 0).toLocaleString()} <span className="text-[10px] font-bold text-slate-300 ml-1">{item.unit}</span>
-                        </td>
-                        <td className="px-6 py-5 text-center">
-                          <span className="px-3 py-1 bg-slate-100 text-slate-500 rounded-full text-[9px] font-black uppercase tracking-widest border border-slate-200">{item.status}</span>
-                        </td>
+               <div className="overflow-x-auto">
+                 <table className="w-full text-left min-w-[500px]">
+                    <thead className="bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100">
+                      <tr>
+                        <th className="px-6 py-4">Material Name</th>
+                        <th className="px-6 py-4 text-center">Volume Pesanan</th>
+                        <th className="px-6 py-4 text-center">Status Item</th>
                       </tr>
-                    ))}
-                  </tbody>
-               </table>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {getItems(selectedRO).map((item: any, idx: number) => (
+                        <tr key={idx} className="hover:bg-slate-50/30 transition-colors">
+                          <td className="px-6 py-5">
+                            <div className="font-bold text-slate-800">{item.materialName}</div>
+                            <div className="text-[10px] text-slate-400 font-mono mt-1">{item.materialId}</div>
+                          </td>
+                          <td className="px-6 py-5 text-center font-black text-[#1C0770]">
+                            {(item.quantity || 0).toLocaleString()} <span className="text-[10px] font-bold text-slate-300 ml-1">{item.unit}</span>
+                          </td>
+                          <td className="px-6 py-5 text-center">
+                            <span className="px-3 py-1 bg-slate-100 text-slate-500 rounded-full text-[9px] font-black uppercase tracking-widest border border-slate-200">{item.status}</span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                 </table>
+               </div>
 
                <div className="mt-10 p-8 bg-slate-50 rounded-[32px] border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-6">
                   {selectedRO.status === 'Draft' ? (
