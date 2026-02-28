@@ -568,7 +568,7 @@ const MasterData: React.FC<MasterDataProps> = ({
                     }
 
                     return (
-                      <div key={i} className="flex flex-col md:flex-row gap-6 items-start md:items-center bg-white p-6 rounded-[28px] border border-slate-200 shadow-sm animate-in fade-in slide-in-from-top-2 relative z-[50]">
+                      <div key={`${ing.materialId}-${i}`} className="flex flex-col md:flex-row gap-6 items-start md:items-center bg-white p-6 rounded-[28px] border border-slate-200 shadow-sm animate-in fade-in slide-in-from-top-2 relative z-[50]">
                          <div className="flex-[4] w-full relative">
                             <SearchableSelect 
                               options={rawMaterials}

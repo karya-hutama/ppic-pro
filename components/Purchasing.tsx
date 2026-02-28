@@ -155,8 +155,8 @@ const Purchasing: React.FC<PurchasingProps> = ({ history = [], onUpdateRO }) => 
           { label: 'Total Request Order', val: stats.total, color: 'text-[#1C0770]', icon: '📜' },
           { label: 'Status Draft/Pending', val: stats.pending, color: 'text-amber-600', icon: '⏳' },
           { label: 'Total Item Dipesan', val: stats.totalItems, color: 'text-emerald-600', icon: '📦' },
-        ].map((stat, i) => (
-          <div key={i} className="bg-white p-6 rounded-[32px] border border-slate-50 shadow-sm flex items-center gap-5">
+        ].map((stat) => (
+          <div key={stat.label} className="bg-white p-6 rounded-[32px] border border-slate-50 shadow-sm flex items-center gap-5">
             <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-2xl">{stat.icon}</div>
             <div>
               <div className="text-[10px] uppercase tracking-widest font-black text-slate-400 mb-1">{stat.label}</div>
@@ -267,7 +267,7 @@ const Purchasing: React.FC<PurchasingProps> = ({ history = [], onUpdateRO }) => 
                     </thead>
                     <tbody className="divide-y divide-slate-50">
                       {getItems(selectedRO).map((item: any, idx: number) => (
-                        <tr key={idx} className="hover:bg-slate-50/30 transition-colors">
+                        <tr key={`${item.materialId}-${idx}`} className="hover:bg-slate-50/30 transition-colors">
                           <td className="px-6 py-5">
                             <div className="font-bold text-slate-800">{item.materialName}</div>
                             <div className="text-[10px] text-slate-400 font-mono mt-1">{item.materialId}</div>

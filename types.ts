@@ -27,6 +27,7 @@ export interface FinishGood {
   ingredients?: Ingredient[];
   hpp?: number;
   isProductionReady?: boolean;
+  maxCapacity?: number;
 }
 
 export interface SalesData {

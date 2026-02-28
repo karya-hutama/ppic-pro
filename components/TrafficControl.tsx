@@ -506,7 +506,7 @@ const TrafficControl: React.FC<TrafficControlProps> = ({
                             const isLate = ro.deadline && item.estimatedArrival && new Date(item.estimatedArrival) > new Date(ro.deadline);
 
                             return (
-                              <div key={idx} className="bg-slate-50/30 rounded-[32px] p-8 border border-slate-100">
+                              <div key={`${item.materialId}-${idx}`} className="bg-slate-50/30 rounded-[32px] p-8 border border-slate-100">
                                  <div className="flex flex-col lg:flex-row gap-10 items-center">
                                     <div className="flex-1 w-full space-y-4">
                                        <div className="flex justify-between items-end">

@@ -286,7 +286,7 @@ const ScheduledProduction: React.FC<ScheduledProductionProps> = ({
                     <th className="px-4 py-6 text-center border-r border-slate-100 bg-slate-50 sticky left-[280px] z-40 border-b w-[80px]">Days Out</th>
                     <th className="px-4 py-6 text-center border-r border-slate-100 bg-slate-50 sticky left-[360px] z-40 border-b w-[80px]">Target</th>
                     {scheduleDates.map((dateObj, idx) => (
-                      <th key={idx} className="px-1 py-5 text-center border-r border-slate-100 min-w-[120px] border-b">
+                      <th key={dateObj.formatted} className="px-1 py-5 text-center border-r border-slate-100 min-w-[120px] border-b">
                         <div className="text-[#1C0770] mb-0.5">{dateObj.dayName}</div>
                         <div className="text-[8px] opacity-60">{dateObj.formatted}</div>
                       </th>
@@ -322,7 +322,7 @@ const ScheduledProduction: React.FC<ScheduledProductionProps> = ({
                         {scheduleDates.map((dateObj, dayRelIdx) => {
                           const isPeak = peakDayIdx === dateObj.dayIdx;
                           return (
-                            <td key={dayRelIdx} className={`px-2 py-5 border-r border-slate-100 transition-colors ${isPeak ? 'bg-amber-50/30' : ''}`}>
+                            <td key={dateObj.formatted} className={`px-2 py-5 border-r border-slate-100 transition-colors ${isPeak ? 'bg-amber-50/30' : ''}`}>
                                <input 
                                   type="number"
                                   placeholder="0"

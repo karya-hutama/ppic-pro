@@ -13,6 +13,7 @@ interface SkuTarget {
   stockOnHand: number;
   peakDayName?: string;
   peakDayIdx?: number;
+  maxCapacity?: number;
 }
 
 interface ProductionPlanningProps {
@@ -49,7 +50,8 @@ const ProductionPlanning: React.FC<ProductionPlanningProps> = ({
         stockOnHand: sku.stock || 0,
         peakDayName: transferData?.peakDayName,
         peakDayIdx: transferData?.peakDayIdx,
-        salesRequest: 0
+        salesRequest: 0,
+        maxCapacity: sku.maxCapacity
       };
     });
 
@@ -211,8 +213,15 @@ const ProductionPlanning: React.FC<ProductionPlanningProps> = ({
                        <div className="text-[8px] font-bold text-slate-400 uppercase">Net Requirement</div>
                     </td>
                     <td className="px-4 py-7 text-center bg-emerald-50/5">
-                       <div className="text-xl font-black text-emerald-600">
-                         {t.estimationStock.toLocaleString()}
+                       <div className="flex items-center justify-center gap-2">
+                         <div className={`text-xl font-black ${t.maxCapacity && t.estimationStock > t.maxCapacity ? 'text-rose-600' : 'text-emerald-600'}`}>
+                           {t.estimationStock.toLocaleString()}
+                         </div>
+                         {t.maxCapacity !== undefined && (
+                           <div className="text-xs font-bold text-slate-400">
+                             / {t.maxCapacity.toLocaleString()}
+                           </div>
+                         )}
                        </div>
                        <div className="text-[8px] font-bold text-emerald-400 uppercase">Stock After Prod</div>
                     </td>

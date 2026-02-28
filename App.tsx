@@ -4,6 +4,7 @@ import { SPREADSHEET_CONFIG } from './spreadsheetConfig';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
 import MasterData from './components/MasterData';
+import Capacity from './components/Capacity';
 import ProductionPlanning from './components/ProductionPlanning';
 import Purchasing from './components/Purchasing';
 import SalesAnalysis from './components/SalesAnalysis';
@@ -193,6 +194,8 @@ const App: React.FC = () => {
         return <Dashboard productionHistory={productionHistory} requestOrders={requestOrders} rawMaterials={rawMaterials} finishGoods={finishGoods} salesData={salesData} onRefresh={() => fetchData(false)} />;
       case 'master':
         return <MasterData rawMaterials={rawMaterials} finishGoods={finishGoods} onUpdateRM={handleUpdateRM} onUpdateFG={handleUpdateFG} />;
+      case 'capacity':
+        return <Capacity finishGoods={finishGoods} onUpdateFG={handleUpdateFG} />;
       case 'production':
         return <ProductionPlanning 
           finishGoods={finishGoods} 

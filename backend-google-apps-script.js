@@ -72,8 +72,8 @@ function doPost(e) {
   if (action === "syncMasterFG") {
     const sheet = ss.getSheetByName("finishGoods");
     sheet.clear();
-    sheet.appendRow(["id", "name", "qtyPerBatch", "stock", "hpp", "isProductionReady", "ingredients"]);
-    const rows = data.data.map(fg => [fg.id, fg.name, fg.qtyPerBatch, fg.stock, fg.hpp || 0, fg.isProductionReady || false, JSON.stringify(fg.ingredients || [])]);
+    sheet.appendRow(["id", "name", "qtyPerBatch", "stock", "hpp", "isProductionReady", "ingredients", "maxCapacity"]);
+    const rows = data.data.map(fg => [fg.id, fg.name, fg.qtyPerBatch, fg.stock, fg.hpp || 0, fg.isProductionReady || false, JSON.stringify(fg.ingredients || []), fg.maxCapacity || ""]);
     if (rows.length > 0) sheet.getRange(2, 1, rows.length, rows[0].length).setValues(rows);
   }
 
@@ -139,7 +139,7 @@ function setupSpreadsheet() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const config = {
     "rawMaterials": ["id", "name", "usageUnit", "purchaseUnit", "conversionFactor", "stock", "minStock", "pricePerPurchaseUnit", "leadTime", "isProcessed", "sourceMaterialId", "processingYield"],
-    "finishGoods": ["id", "name", "qtyPerBatch", "stock", "hpp", "isProductionReady", "ingredients"],
+    "finishGoods": ["id", "name", "qtyPerBatch", "stock", "hpp", "isProductionReady", "ingredients", "maxCapacity"],
     "salesData": ["id", "skuId", "date", "quantitySold"],
     "productionHistory": ["id", "data", "startDate", "createdAt", "totalBatches", "targets"],
     "rmHistory": ["id", "startDate", "createdAt", "globalData", "perSkuData"],

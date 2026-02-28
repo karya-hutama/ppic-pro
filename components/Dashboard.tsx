@@ -309,7 +309,7 @@ const Dashboard: React.FC<DashboardProps> = ({
            <h3 className="text-xl font-black text-slate-800 tracking-tight mb-8">Top Produced SKU</h3>
            <div className="space-y-8 flex-1 overflow-y-auto custom-scrollbar pr-2">
               {(topProduced || []).length > 0 ? topProduced.map((sku, i) => (
-                <div key={i} className="space-y-3">
+                <div key={`${sku.name}-${i}`} className="space-y-3">
                    <div className="flex justify-between items-end">
                       <span className="text-xs font-bold text-slate-600 truncate max-w-[150px]">{sku.name}</span>
                       <span className="text-sm font-black text-[#1C0770]">{sku.value.toLocaleString()} <span className="text-[10px] text-slate-400 uppercase ml-1">Batch</span></span>

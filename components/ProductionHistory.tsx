@@ -253,7 +253,7 @@ const ProductionHistory: React.FC<ProductionHistoryProps> = ({ history = [], fin
                               {d.dailyBatches.map((val, i) => {
                                 const displayVal = detailTab === 'batch' ? val : d.dailyPacks[i];
                                 return (
-                                  <td key={i} className={`px-4 py-5 text-center border-r border-slate-100 font-black ${displayVal > 0 ? (detailTab === 'batch' ? 'text-[#1C0770]' : 'text-emerald-600') : 'text-slate-200'}`}>
+                                  <td key={`${d.id}-day-${i}`} className={`px-4 py-5 text-center border-r border-slate-100 font-black ${displayVal > 0 ? (detailTab === 'batch' ? 'text-[#1C0770]' : 'text-emerald-600') : 'text-slate-200'}`}>
                                     {displayVal > 0 ? displayVal.toLocaleString() : '-'}
                                   </td>
                                 );
