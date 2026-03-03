@@ -73,7 +73,7 @@ const TrafficControl: React.FC<TrafficControlProps> = ({
   const stats = useMemo(() => {
     // Hitung Nilai RM: (Stok * (Harga Beli / Faktor Konversi))
     const rmValue = (rawMaterials || []).reduce((acc, rm) => {
-      const unitPrice = (rm.pricePerPurchaseUnit || 0) / (rm.conversionFactor || 1);
+      const unitPrice = rm.pricePerPurchaseUnit || 0;
       return acc + ((rm.stock || 0) * unitPrice);
     }, 0);
 
@@ -422,7 +422,7 @@ const TrafficControl: React.FC<TrafficControlProps> = ({
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {filteredRM.map(rm => {
-                    const unitPrice = (rm.pricePerPurchaseUnit || 0) / (rm.conversionFactor || 1);
+                    const unitPrice = rm.pricePerPurchaseUnit || 0;
                     return (
                       <tr key={rm.id} className="hover:bg-slate-50/50 transition-colors">
                         <td className="px-10 py-6">
@@ -435,7 +435,7 @@ const TrafficControl: React.FC<TrafficControlProps> = ({
                         </td>
                         <td className="px-6 py-6 text-right">
                            <div className="font-bold text-slate-800">Rp {((rm.stock || 0) * unitPrice).toLocaleString('id-ID')}</div>
-                           <div className="text-[9px] text-slate-400 font-medium">Berdasarkan Harga Beli Terakhir</div>
+                           <div className="text-[9px] text-slate-400 font-medium">Berdasarkan HPP / Satuan Stok</div>
                         </td>
                       </tr>
                     );

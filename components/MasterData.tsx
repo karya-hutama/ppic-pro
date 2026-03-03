@@ -141,11 +141,11 @@ const MasterData: React.FC<MasterDataProps> = ({
       if (rm.isProcessed && rm.sourceMaterialId) {
         const sourceRm = rawMaterials.find(m => m.id === rm.sourceMaterialId);
         if (sourceRm) {
-          const sourceUnitCost = sourceRm.pricePerPurchaseUnit / (sourceRm.conversionFactor || 1);
+          const sourceUnitCost = sourceRm.pricePerPurchaseUnit;
           unitCost = sourceUnitCost / (rm.processingYield || 1);
         }
       } else {
-        unitCost = rm.pricePerPurchaseUnit / (rm.conversionFactor || 1);
+        unitCost = rm.pricePerPurchaseUnit;
       }
       totalBatchCost += unitCost * (ing.quantity || 0);
     });
@@ -485,7 +485,7 @@ const MasterData: React.FC<MasterDataProps> = ({
                     </div>
                     {!isProcessed && (
                       <div className="md:col-span-2">
-                        <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Harga / Satuan Beli</label>
+                        <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Harga / Satuan Stok (HPP)</label>
                         <input type="number" name="price" defaultValue={editingItem?.pricePerPurchaseUnit} className="w-full px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 ring-[#1C0770]/10 outline-none transition font-medium" />
                       </div>
                     )}
@@ -558,11 +558,11 @@ const MasterData: React.FC<MasterDataProps> = ({
                       if (currentRm.isProcessed && currentRm.sourceMaterialId) {
                         const sourceRm = rawMaterials.find(m => m.id === currentRm.sourceMaterialId);
                         if (sourceRm) {
-                          const sourceUnitCost = sourceRm.pricePerPurchaseUnit / (sourceRm.conversionFactor || 1);
+                          const sourceUnitCost = sourceRm.pricePerPurchaseUnit;
                           unitCost = sourceUnitCost / (currentRm.processingYield || 1);
                         }
                       } else {
-                        unitCost = currentRm.pricePerPurchaseUnit / (currentRm.conversionFactor || 1);
+                        unitCost = currentRm.pricePerPurchaseUnit;
                       }
                       itemCost = unitCost * (ing.quantity || 0);
                     }
