@@ -13,20 +13,16 @@ const parseSafeDate = (dateInput: any): Date => {
   
   if (typeof dateInput === 'string') {
     // Handle YYYY-MM-DD or DD-MM-YYYY or ISO string
-    // Split by T or space to get only the date part
     const datePart = dateInput.split(/[ T]/)[0];
     const parts = datePart.split(/[-/]/);
     
     if (parts.length === 3) {
       let y, m, d;
-      // Check if first part is year (YYYY-MM-DD)
       if (parts[0].length === 4) {
         y = parseInt(parts[0]);
         m = parseInt(parts[1]);
         d = parseInt(parts[2]);
-      } 
-      // Check if last part is year (DD-MM-YYYY)
-      else if (parts[2].length === 4) {
+      } else if (parts[2].length === 4) {
         d = parseInt(parts[0]);
         m = parseInt(parts[1]);
         y = parseInt(parts[2]);
@@ -42,6 +38,14 @@ const parseSafeDate = (dateInput: any): Date => {
   
   const d = new Date(dateInput);
   return isNaN(d.getTime()) ? new Date() : d;
+};
+
+const formatDateToISO = (dateInput: any): string => {
+  const d = parseSafeDate(dateInput);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 };
 
 interface ScheduledProductionProps {
@@ -73,12 +77,8 @@ const ScheduledProduction: React.FC<ScheduledProductionProps> = ({
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'schedule' | 'rm-needs'>('schedule');
   const [startDate, setStartDate] = useState(() => {
-    if (initialStartDate) return initialStartDate;
-    const d = new Date();
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    if (initialStartDate) return formatDateToISO(initialStartDate);
+    return formatDateToISO(new Date());
   });
 
   const activeFinishGoods = useMemo(() => {
@@ -106,7 +106,7 @@ const ScheduledProduction: React.FC<ScheduledProductionProps> = ({
   });
 
   useEffect(() => {
-    if (initialStartDate) setStartDate(initialStartDate);
+    if (initialStartDate) setStartDate(formatDateToISO(initialStartDate));
   }, [initialStartDate]);
 
   // Only add missing SKUs to the schedule state, don't overwrite existing ones
