@@ -3,6 +3,28 @@ import React, { useState, useMemo } from 'react';
 import * as XLSX from 'xlsx';
 import { SavedRMRequirement, RawMaterial, FinishGood } from '../types';
 
+const parseSafeDate = (dateInput: any): Date => {
+  if (!dateInput) return new Date();
+  if (dateInput instanceof Date) return isNaN(dateInput.getTime()) ? new Date() : dateInput;
+  
+  if (typeof dateInput === 'string') {
+    const datePart = dateInput.split('T')[0];
+    const parts = datePart.split(/[-/]/);
+    if (parts.length === 3) {
+      const y = parseInt(parts[0]);
+      const m = parseInt(parts[1]);
+      const d = parseInt(parts[2]);
+      if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+        if (y < 32 && d > 1000) return new Date(d, m - 1, y);
+        return new Date(y, m - 1, d);
+      }
+    }
+  }
+  
+  const d = new Date(dateInput);
+  return isNaN(d.getTime()) ? new Date() : d;
+};
+
 interface RMHistoryProps {
   history: SavedRMRequirement[];
   rawMaterials: RawMaterial[];
@@ -97,10 +119,14 @@ const RMHistory: React.FC<RMHistoryProps> = ({ history = [], rawMaterials = [], 
                 <div className="flex items-center gap-6">
                    <div className="w-16 h-16 bg-indigo-50 text-indigo-400 rounded-3xl flex flex-col items-center justify-center shrink-0">
                       <span className="text-[10px] font-black uppercase leading-none mb-1">RM</span>
-                      <span className="text-2xl font-black font-mono leading-none">{new Date(item.startDate).getDate()}</span>
+                      <span className="text-2xl font-black font-mono leading-none">
+  {parseSafeDate(item.startDate).getDate()}
+</span>
                    </div>
                    <div>
-                      <h4 className="font-bold text-slate-800 text-lg tracking-tight">Kebutuhan Produksi: {new Date(item.startDate).toLocaleDateString('id-ID', {day: 'numeric', month: 'long', year: 'numeric'})}</h4>
+                      <h4 className="font-bold text-slate-800 text-lg tracking-tight">
+  Kebutuhan Produksi: {parseSafeDate(item.startDate).toLocaleDateString('id-ID', {day: 'numeric', month: 'long', year: 'numeric'})}
+</h4>
                       <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Disimpan: {new Date(item.createdAt).toLocaleString('id-ID')}</p>
                    </div>
                 </div>
@@ -125,7 +151,9 @@ const RMHistory: React.FC<RMHistoryProps> = ({ history = [], rawMaterials = [], 
                    <div className="w-14 h-14 bg-[#1C0770] text-white rounded-2xl flex items-center justify-center text-2xl shadow-lg">📄</div>
                    <div>
                       <h2 className="text-2xl font-black text-slate-900 tracking-tight">Detail Kebutuhan RM</h2>
-                      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Periode Produksi: {new Date(selectedReq.startDate).toLocaleDateString('id-ID', {day: 'numeric', month: 'long', year: 'numeric'})}</p>
+                      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">
+  Periode Produksi: {parseSafeDate(selectedReq.startDate).toLocaleDateString('id-ID', {day: 'numeric', month: 'long', year: 'numeric'})}
+</p>
                    </div>
                 </div>
                 <div className="flex items-center gap-3">

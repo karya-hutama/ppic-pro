@@ -4,7 +4,33 @@ import { SavedSchedule, FinishGood } from '../types';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-const DAYS = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
+const DAYS_NAME = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+
+const parseSafeDate = (dateInput: any): Date => {
+  if (!dateInput) return new Date();
+  if (dateInput instanceof Date) return isNaN(dateInput.getTime()) ? new Date() : dateInput;
+  
+  if (typeof dateInput === 'string') {
+    // Handle YYYY-MM-DD or ISO string
+    const datePart = dateInput.split('T')[0];
+    const parts = datePart.split(/[-/]/);
+    if (parts.length === 3) {
+      const y = parseInt(parts[0]);
+      const m = parseInt(parts[1]);
+      const d = parseInt(parts[2]);
+      if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+        // If year is the last part (DD/MM/YYYY)
+        if (y < 32 && d > 1000) {
+          return new Date(d, m - 1, y);
+        }
+        return new Date(y, m - 1, d);
+      }
+    }
+  }
+  
+  const d = new Date(dateInput);
+  return isNaN(d.getTime()) ? new Date() : d;
+};
 
 interface ProductionHistoryProps {
   history: SavedSchedule[];
@@ -15,6 +41,30 @@ interface ProductionHistoryProps {
 const ProductionHistory: React.FC<ProductionHistoryProps> = ({ history = [], finishGoods = [], onEdit }) => {
   const [selectedSchedule, setSelectedSchedule] = useState<SavedSchedule | null>(null);
   const [detailTab, setDetailTab] = useState<'batch' | 'output'>('batch');
+  
+  const getScheduleDates = (startDateStr: string) => {
+    const dates = [];
+    const startDateObj = parseSafeDate(startDateStr);
+    const y = startDateObj.getFullYear();
+    const m = startDateObj.getMonth();
+    const d = startDateObj.getDate();
+    
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(y, m, d + i);
+      dates.push({
+        dayName: DAYS_NAME[date.getDay()],
+        dayIdx: date.getDay(),
+        formatted: date.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' }),
+        fullDate: date
+      });
+    }
+    return dates;
+  };
+
+  const selectedDates = useMemo(() => {
+    if (!selectedSchedule) return [];
+    return getScheduleDates(selectedSchedule.startDate);
+  }, [selectedSchedule]);
   
   const [filterStart, setFilterStart] = useState<string>('');
   const [filterEnd, setFilterEnd] = useState<string>('');
@@ -102,7 +152,8 @@ const ProductionHistory: React.FC<ProductionHistoryProps> = ({ history = [], fin
   const handleDownloadPDF = () => {
     if (!selectedSchedule) return;
     const doc = new jsPDF({ orientation: 'landscape' });
-    const dateStr = new Date(selectedSchedule.startDate).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    const startDateObj = parseSafeDate(selectedSchedule.startDate);
+    const dateStr = startDateObj.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
     doc.setFontSize(22);
     doc.setTextColor(28, 7, 112); 
@@ -112,7 +163,7 @@ const ProductionHistory: React.FC<ProductionHistoryProps> = ({ history = [], fin
     doc.setTextColor(100);
     doc.text(`Periode: ${dateStr}`, 14, 22);
     
-    const head = [['Produk SKU', ...DAYS, detailTab === 'batch' ? 'Total Batch' : 'Total Packs', 'Status Target']];
+    const head = [['Produk SKU', ...selectedDates.map(d => `${d.dayName}\n${d.formatted}`), detailTab === 'batch' ? 'Total Batch' : 'Total Packs', 'Status Target']];
     const body = detailData.map(d => [
       d.name,
       ...(detailTab === 'batch' ? d.dailyBatches : d.dailyPacks.map(p => p.toLocaleString())),
@@ -165,13 +216,17 @@ const ProductionHistory: React.FC<ProductionHistoryProps> = ({ history = [], fin
           filteredHistory.map(item => (
             <div key={item.id} className="bg-white p-6 md:p-8 rounded-[40px] border border-slate-100 shadow-sm hover:shadow-md transition-all group">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                <div className="flex items-center gap-6">
+                 <div className="flex items-center gap-6">
                    <div className="w-16 h-16 bg-[#1C0770]/5 rounded-3xl flex flex-col items-center justify-center shrink-0">
                       <span className="text-[10px] font-black text-slate-400 uppercase leading-none mb-1">Date</span>
-                      <span className="text-2xl font-black text-[#1C0770] font-mono leading-none">{new Date(item.startDate).getDate()}</span>
+                      <span className="text-2xl font-black text-[#1C0770] font-mono leading-none">
+                        {parseSafeDate(item.startDate).getDate()}
+                      </span>
                    </div>
                    <div>
-                      <h4 className="font-bold text-slate-800 text-lg tracking-tight">Produksi: {new Date(item.startDate).toLocaleDateString('id-ID', {day: 'numeric', month: 'long', year: 'numeric'})}</h4>
+                      <h4 className="font-bold text-slate-800 text-lg tracking-tight">
+                        Produksi: {parseSafeDate(item.startDate).toLocaleDateString('id-ID', {day: 'numeric', month: 'long', year: 'numeric'})}
+                      </h4>
                       <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">ID: {item.id}</p>
                    </div>
                 </div>
@@ -196,7 +251,9 @@ const ProductionHistory: React.FC<ProductionHistoryProps> = ({ history = [], fin
                 <div className="w-14 h-14 bg-[#1C0770] text-white rounded-2xl flex items-center justify-center text-2xl shadow-lg shrink-0">📄</div>
                 <div>
                   <h2 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight">Detail Produksi</h2>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Periode: {new Date(selectedSchedule.startDate).toLocaleDateString('id-ID', {day: 'numeric', month: 'long', year: 'numeric'})}</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+                    Periode: {parseSafeDate(selectedSchedule.startDate).toLocaleDateString('id-ID', {day: 'numeric', month: 'long', year: 'numeric'})}
+                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-3 w-full md:w-auto">
@@ -228,7 +285,12 @@ const ProductionHistory: React.FC<ProductionHistoryProps> = ({ history = [], fin
                     <thead className="bg-slate-50 text-[9px] uppercase font-black text-slate-400">
                       <tr>
                         <th className="px-8 py-5 border-r border-slate-100 sticky left-0 bg-slate-50 z-10">Product SKU</th>
-                        {DAYS.map(day => <th key={day} className="px-4 py-5 text-center border-r border-slate-100">{day}</th>)}
+                        {selectedDates.map(dateObj => (
+                          <th key={dateObj.formatted} className="px-4 py-5 text-center border-r border-slate-100">
+                            <div className="text-[#1C0770]">{dateObj.dayName}</div>
+                            <div className="text-[8px] opacity-60">{dateObj.formatted}</div>
+                          </th>
+                        ))}
                         <th className="px-8 py-5 text-center font-black text-slate-600 border-r border-slate-100">Total</th>
                         <th className="px-8 py-5 text-center font-black text-indigo-600">Keterangan</th>
                       </tr>

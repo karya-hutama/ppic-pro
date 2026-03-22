@@ -1,9 +1,33 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import * as XLSX from 'xlsx';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { RawMaterial, FinishGood } from '../types';
 
 const DAYS_NAME = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+
+const parseSafeDate = (dateInput: any): Date => {
+  if (!dateInput) return new Date();
+  if (dateInput instanceof Date) return isNaN(dateInput.getTime()) ? new Date() : dateInput;
+  
+  if (typeof dateInput === 'string') {
+    const datePart = dateInput.split('T')[0];
+    const parts = datePart.split(/[-/]/);
+    if (parts.length === 3) {
+      const y = parseInt(parts[0]);
+      const m = parseInt(parts[1]);
+      const d = parseInt(parts[2]);
+      if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+        if (y < 32 && d > 1000) return new Date(d, m - 1, y);
+        return new Date(y, m - 1, d);
+      }
+    }
+  }
+  
+  const d = new Date(dateInput);
+  return isNaN(d.getTime()) ? new Date() : d;
+};
 
 interface ScheduledProductionProps {
   finishGoods: FinishGood[];
@@ -87,9 +111,13 @@ const ScheduledProduction: React.FC<ScheduledProductionProps> = ({
 
   const scheduleDates = useMemo(() => {
     const dates = [];
-    const [y, m, d] = startDate.split('-').map(Number);
+    const startDateObj = parseSafeDate(startDate);
+    const y = startDateObj.getFullYear();
+    const m = startDateObj.getMonth();
+    const d = startDateObj.getDate();
+    
     for (let i = 0; i < 7; i++) {
-      const date = new Date(y, m - 1, d + i);
+      const date = new Date(y, m, d + i);
       dates.push({
         dayName: DAYS_NAME[date.getDay()],
         dayIdx: date.getDay(),
@@ -215,6 +243,40 @@ const ScheduledProduction: React.FC<ScheduledProductionProps> = ({
     XLSX.utils.book_append_sheet(workbook, perSkuWorksheet, "Per SKU Needs");
 
     XLSX.writeFile(workbook, `Kebutuhan_Bahan_Baku_${startDate}.xlsx`);
+  };
+
+  const handleDownloadPDF = () => {
+    const doc = new jsPDF({ orientation: 'landscape' });
+    const startDateObj = parseSafeDate(startDate);
+    const dateStr = startDateObj.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+    doc.setFontSize(22);
+    doc.setTextColor(28, 7, 112); 
+    doc.text('PPIC PRO - RENCANA PRODUKSI', 14, 15);
+    
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`Mulai Produksi: ${dateStr}`, 14, 22);
+    
+    const head = [['Product SKU', 'SOH', 'Target', ...scheduleDates.map(d => `${d.dayName}\n${d.formatted}`), 'Total']];
+    const body = outputData.map(({ sku, targetBatch, scheduledBatch }) => [
+      sku.name,
+      sku.stock.toLocaleString(),
+      targetBatch,
+      ...(schedule[sku.id] || new Array(7).fill(0)),
+      scheduledBatch
+    ]);
+
+    autoTable(doc, {
+      startY: 35,
+      head: head,
+      body: body,
+      theme: 'grid',
+      headStyles: { fillColor: [28, 7, 112], fontSize: 9 },
+      styles: { fontSize: 8 }
+    });
+
+    doc.save(`Rencana_Produksi_${startDate}.pdf`);
   };
 
   return (
@@ -351,10 +413,16 @@ const ScheduledProduction: React.FC<ScheduledProductionProps> = ({
                 <div className="w-12 h-12 bg-indigo-50 text-[#1C0770] rounded-2xl flex items-center justify-center text-xl shadow-sm">📊</div>
                 <div>
                    <h3 className="text-xl font-black text-slate-800 tracking-tight">Kalkulasi Raw Material (Purchasing Focus)</h3>
-                   <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Rencana Produksi: {new Date(startDate).toLocaleDateString('id-ID', {day: 'numeric', month: 'long'})}</p>
+                   <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Rencana Produksi: {parseSafeDate(startDate).toLocaleDateString('id-ID', {day: 'numeric', month: 'long'})}</p>
                 </div>
              </div>
              <div className="flex gap-4">
+                <button 
+                  onClick={handleDownloadPDF}
+                  className="px-6 py-4 bg-rose-500 text-white rounded-2xl font-black uppercase text-[10px] hover:bg-rose-600 transition-all shadow-sm flex items-center gap-2"
+                >
+                  <span>📄</span> Download PDF
+                </button>
                 <button 
                   onClick={handleDownloadExcel}
                   className="px-6 py-4 bg-emerald-500 text-white rounded-2xl font-black uppercase text-[10px] hover:bg-emerald-600 transition-all shadow-sm flex items-center gap-2"
