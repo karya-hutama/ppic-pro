@@ -6,17 +6,28 @@ import { SavedRMRequirement, RawMaterial, FinishGood } from '../types';
 const parseSafeDate = (dateInput: any): Date => {
   if (!dateInput) return new Date();
   
-  let y, m, d;
+  // If it's already a Date object, normalize to local midnight
   if (dateInput instanceof Date) {
-    y = dateInput.getFullYear();
-    m = dateInput.getMonth() + 1;
-    d = dateInput.getDate();
-  } else if (typeof dateInput === 'string') {
-    // Handle ISO string or simple date string
+    return new Date(dateInput.getFullYear(), dateInput.getMonth(), dateInput.getDate(), 0, 0, 0, 0);
+  }
+
+  if (typeof dateInput === 'string') {
+    // 1. Handle ISO strings with timezone (e.g., "2026-03-23T17:00:00.000Z")
+    // This is crucial because GAS stringifies Date objects to UTC ISO strings.
+    if (dateInput.includes('T') && (dateInput.includes('Z') || dateInput.includes('+'))) {
+      const d = new Date(dateInput);
+      if (!isNaN(d.getTime())) {
+        // Return local midnight for that specific calendar day
+        return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
+      }
+    }
+
+    // 2. Handle simple date strings (e.g., "2026-03-24" or "24-03-2026")
     const datePart = dateInput.split(/[ T]/)[0];
     const parts = datePart.split(/[-/]/);
     
     if (parts.length === 3) {
+      let y, m, d;
       if (parts[0].length === 4) { // YYYY-MM-DD
         y = parseInt(parts[0]);
         m = parseInt(parts[1]);
@@ -28,27 +39,24 @@ const parseSafeDate = (dateInput: any): Date => {
         
         // Smarter detection for DD/MM/YYYY vs MM/DD/YYYY
         if (p1 > 12) { // MM/DD/YYYY
-          m = p0;
-          d = p1;
-          y = p2;
+          m = p0; d = p1; y = p2;
         } else { // DD/MM/YYYY (Default for Indonesia)
-          d = p0;
-          m = p1;
-          y = p2;
+          d = p0; m = p1; y = p2;
         }
+      }
+
+      if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+        return new Date(y, m - 1, d, 0, 0, 0, 0);
       }
     }
   }
 
-  if (y !== undefined && m !== undefined && d !== undefined && !isNaN(y) && !isNaN(m) && !isNaN(d)) {
-    return new Date(y, m - 1, d, 0, 0, 0, 0);
-  }
-  
+  // 3. Final fallback
   const fallback = new Date(dateInput);
   if (!isNaN(fallback.getTime())) {
-    // If fallback worked, ensure we use local midnight
     return new Date(fallback.getFullYear(), fallback.getMonth(), fallback.getDate(), 0, 0, 0, 0);
   }
+  
   return new Date();
 };
 
