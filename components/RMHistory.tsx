@@ -12,17 +12,30 @@ const parseSafeDate = (dateInput: any): Date => {
     m = dateInput.getMonth() + 1;
     d = dateInput.getDate();
   } else if (typeof dateInput === 'string') {
+    // Handle ISO string or simple date string
     const datePart = dateInput.split(/[ T]/)[0];
     const parts = datePart.split(/[-/]/);
+    
     if (parts.length === 3) {
-      if (parts[0].length === 4) {
+      if (parts[0].length === 4) { // YYYY-MM-DD
         y = parseInt(parts[0]);
         m = parseInt(parts[1]);
         d = parseInt(parts[2]);
       } else {
-        d = parseInt(parts[0]);
-        m = parseInt(parts[1]);
-        y = parseInt(parts[2]);
+        const p0 = parseInt(parts[0]);
+        const p1 = parseInt(parts[1]);
+        const p2 = parseInt(parts[2]);
+        
+        // Smarter detection for DD/MM/YYYY vs MM/DD/YYYY
+        if (p1 > 12) { // MM/DD/YYYY
+          m = p0;
+          d = p1;
+          y = p2;
+        } else { // DD/MM/YYYY (Default for Indonesia)
+          d = p0;
+          m = p1;
+          y = p2;
+        }
       }
     }
   }
@@ -32,7 +45,11 @@ const parseSafeDate = (dateInput: any): Date => {
   }
   
   const fallback = new Date(dateInput);
-  return isNaN(fallback.getTime()) ? new Date() : fallback;
+  if (!isNaN(fallback.getTime())) {
+    // If fallback worked, ensure we use local midnight
+    return new Date(fallback.getFullYear(), fallback.getMonth(), fallback.getDate(), 0, 0, 0, 0);
+  }
+  return new Date();
 };
 
 const formatDateToISO = (dateInput: any): string => {

@@ -125,7 +125,7 @@ const App: React.FC = () => {
 
   const handleSaveSchedule = async (scheduleData: Record<string, number[]>, startDate: string, targets?: Record<string, number>, existingId?: string) => {
     const totalBatches = Object.values(scheduleData).reduce((acc, days) => acc + days.reduce((a, b) => a + b, 0), 0);
-    const originalEntry = existingId ? productionHistory.find(h => h.id === existingId) : null;
+    const originalEntry = existingId ? productionHistory.find(h => String(h.id).trim() === String(existingId).trim()) : null;
     
     const newEntry: SavedSchedule = {
       id: existingId || `SCH-${Date.now()}`,

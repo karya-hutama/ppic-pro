@@ -119,20 +119,35 @@ function doPost(e) {
 function getSheetData(ss, name) {
   const sheet = ss.getSheetByName(name);
   if (!sheet) return [];
-  const vals = sheet.getDataRange().getValues();
+  const range = sheet.getDataRange();
+  const vals = range.getValues();
+  const displayVals = range.getDisplayValues();
   if (vals.length < 2) return [];
   const headers = vals.shift();
+  displayVals.shift();
   
-  return vals.map(row => {
+  return vals.map((row, rowIndex) => {
     const obj = {};
     headers.forEach((h, i) => {
       if (!h) return;
       let val = row[i];
+      let displayVal = displayVals[rowIndex][i];
       let key = h.toString().trim();
+      
+      // Handle JSON fields
       if (["ingredients", "data", "items", "globalData", "perSkuData", "targets"].includes(key) && typeof val === 'string' && val !== "") {
         try { val = JSON.parse(val); } catch(e) { val = {}; }
       }
-      if (val instanceof Date) val = Utilities.formatDate(val, ss.getSpreadsheetTimeZone(), "yyyy-MM-dd");
+      // Handle Date fields - use display value to avoid timezone shifts
+      else if (val instanceof Date) {
+        // Use the display value if available, as it represents what the user sees in the sheet
+        if (displayVal && displayVal !== "") {
+          val = displayVal;
+        } else {
+          // Fallback to formatting if display value is missing
+          val = Utilities.formatDate(val, ss.getSpreadsheetTimeZone(), "yyyy-MM-dd");
+        }
+      }
       obj[key] = val;
     });
     return obj;
