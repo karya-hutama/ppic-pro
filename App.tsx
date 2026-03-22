@@ -132,7 +132,7 @@ const App: React.FC = () => {
     };
     
     if (existingId) {
-      setProductionHistory(prev => prev.map(h => h.id === existingId ? newEntry : h));
+      setProductionHistory(prev => prev.map(h => String(h.id) === String(existingId) ? newEntry : h));
       postData('updateSchedule', newEntry);
       triggerToast('Jadwal Diperbarui');
     } else {
@@ -236,6 +236,7 @@ const App: React.FC = () => {
             setEditingSchedule(schedule);
             setActiveTab('schedule');
           }}
+          onRefresh={() => fetchData(false)}
         />;
       case 'rmHistory':
         return <RMHistory history={rmHistory} rawMaterials={rawMaterials} finishGoods={finishGoods} />;

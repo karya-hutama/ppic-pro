@@ -50,9 +50,10 @@ interface ProductionHistoryProps {
   history: SavedSchedule[];
   finishGoods: FinishGood[];
   onEdit?: (schedule: SavedSchedule) => void;
+  onRefresh?: () => void;
 }
 
-const ProductionHistory: React.FC<ProductionHistoryProps> = ({ history = [], finishGoods = [], onEdit }) => {
+const ProductionHistory: React.FC<ProductionHistoryProps> = ({ history = [], finishGoods = [], onEdit, onRefresh }) => {
   const [selectedSchedule, setSelectedSchedule] = useState<SavedSchedule | null>(null);
   const [detailTab, setDetailTab] = useState<'batch' | 'output'>('batch');
   
@@ -85,7 +86,15 @@ const ProductionHistory: React.FC<ProductionHistoryProps> = ({ history = [], fin
 
   const safeHistory = useMemo(() => {
     if (!Array.isArray(history)) return [];
-    return history.filter(h => h && h.id && h.startDate);
+    return history
+      .filter(h => h && h.id && h.startDate)
+      .sort((a, b) => {
+        // Sort by startDate descending, then by createdAt descending
+        const dateA = a.startDate;
+        const dateB = b.startDate;
+        if (dateA !== dateB) return dateB.localeCompare(dateA);
+        return (b.createdAt || '').localeCompare(a.createdAt || '');
+      });
   }, [history]);
 
   const filteredHistory = useMemo(() => {
@@ -205,15 +214,33 @@ const ProductionHistory: React.FC<ProductionHistoryProps> = ({ history = [], fin
           <p className="text-slate-500 mt-1 text-sm font-medium italic">Arsip jadwal produksi terkonfirmasi</p>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-end gap-3 bg-white p-4 rounded-[32px] border border-slate-100 shadow-sm w-full md:w-auto">
-          <div className="flex-1 sm:w-40">
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 ml-1">Dari Tanggal</label>
-            <input type="date" value={filterStart} onChange={(e) => setFilterStart(e.target.value)} className="w-full px-4 py-2 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold text-[#1C0770] outline-none" />
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-white p-3 rounded-[28px] border border-slate-100 shadow-sm w-full md:w-auto">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center px-4 gap-3 border-b sm:border-b-0 sm:border-r border-slate-100 pb-3 sm:pb-0">
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Filter Tanggal</span>
+            <div className="flex items-center gap-2">
+              <input 
+                type="date" 
+                value={filterStart} 
+                onChange={(e) => setFilterStart(e.target.value)} 
+                className="text-xs font-bold text-[#1C0770] bg-transparent outline-none" 
+              />
+              <span className="text-slate-300">→</span>
+              <input 
+                type="date" 
+                value={filterEnd} 
+                onChange={(e) => setFilterEnd(e.target.value)} 
+                className="text-xs font-bold text-[#1C0770] bg-transparent outline-none" 
+              />
+            </div>
           </div>
-          <div className="flex-1 sm:w-40">
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 ml-1">Sampai</label>
-            <input type="date" value={filterEnd} onChange={(e) => setFilterEnd(e.target.value)} className="w-full px-4 py-2 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold text-[#1C0770] outline-none" />
-          </div>
+          {onRefresh && (
+            <button 
+              onClick={onRefresh} 
+              className="px-5 py-2.5 bg-[#1C0770] text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all active:scale-95 w-full sm:w-auto flex items-center justify-center gap-2"
+            >
+              <span>🔄</span> Refresh
+            </button>
+          )}
           {(filterStart || filterEnd) && (
             <button onClick={handleResetFilter} className="px-4 py-2 bg-slate-100 text-slate-500 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-slate-200 h-[34px]">Reset</button>
           )}
