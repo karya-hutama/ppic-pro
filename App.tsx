@@ -35,12 +35,16 @@ const App: React.FC = () => {
   const [showSuccessToast, setShowSuccessToast] = useState<{show: boolean, msg: string, type?: 'success' | 'error'}>({show: false, msg: ''});
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [lastPostTime, setLastPostTime] = useState<number>(0);
   const [dbStatus, setDbStatus] = useState<'connected' | 'error' | 'disconnected'>('disconnected');
 
   const isConfigValid = SPREADSHEET_CONFIG.webAppUrl && !SPREADSHEET_CONFIG.webAppUrl.includes("ISI_URL");
 
   const fetchData = useCallback(async (silent = false) => {
     if (!isConfigValid) return;
+    // Prevent background fetch if we just posted something (wait 10s for GAS to settle)
+    if (silent && (isSyncing || Date.now() - lastPostTime < 10000)) return;
+    
     if (!silent) setIsSyncing(true);
     try {
       const response = await fetch(SPREADSHEET_CONFIG.webAppUrl, {
@@ -83,6 +87,7 @@ const App: React.FC = () => {
     
     // Background sync
     setIsSyncing(true);
+    setLastPostTime(Date.now());
     try {
       fetch(SPREADSHEET_CONFIG.webAppUrl, {
         method: 'POST',
@@ -90,8 +95,8 @@ const App: React.FC = () => {
         body: JSON.stringify({ action, ...payload }),
       }).then(() => {
         setIsSyncing(false);
-        // Silent refresh after post - increased delay to ensure sheet is committed
-        setTimeout(() => fetchData(true), 2000);
+        // Silent refresh after post - increased delay to 5s to ensure sheet is committed
+        setTimeout(() => fetchData(true), 5000);
       });
       return true;
     } catch (e: any) {
@@ -132,7 +137,7 @@ const App: React.FC = () => {
     };
     
     if (existingId) {
-      setProductionHistory(prev => prev.map(h => String(h.id) === String(existingId) ? newEntry : h));
+      setProductionHistory(prev => prev.map(h => String(h.id).trim() === String(existingId).trim() ? newEntry : h));
       postData('updateSchedule', newEntry);
       triggerToast('Jadwal Diperbarui');
     } else {
@@ -157,6 +162,13 @@ const App: React.FC = () => {
     triggerToast('Kebutuhan RM Diarsipkan');
   };
 
+  const getLocalISODate = (date = new Date()) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
   const handleCreateRO = async (reorderItems: any[]) => {
     const items: RequestOrderItem[] = reorderItems.map(item => {
       const shortageInUsageUnit = Number(item.ropThreshold || 0) - Number(item.currentStock || 0);
@@ -178,9 +190,9 @@ const App: React.FC = () => {
 
     const newRO: RequestOrder = {
       id: `RO-${Date.now().toString().slice(-6)}`,
-      date: new Date().toISOString().split('T')[0],
+      date: getLocalISODate(),
       createdAt: new Date().toISOString(),
-      deadline: new Date(Date.now() + 3*24*60*60*1000).toISOString().split('T')[0],
+      deadline: getLocalISODate(new Date(Date.now() + 3*24*60*60*1000)),
       items: items,
       status: 'Draft'
     };

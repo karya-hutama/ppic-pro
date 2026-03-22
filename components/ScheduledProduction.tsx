@@ -9,35 +9,34 @@ const DAYS_NAME = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu
 
 const parseSafeDate = (dateInput: any): Date => {
   if (!dateInput) return new Date();
-  if (dateInput instanceof Date) return isNaN(dateInput.getTime()) ? new Date() : dateInput;
   
-  if (typeof dateInput === 'string') {
-    // Handle YYYY-MM-DD or DD-MM-YYYY or ISO string
+  let y, m, d;
+  if (dateInput instanceof Date) {
+    y = dateInput.getFullYear();
+    m = dateInput.getMonth() + 1;
+    d = dateInput.getDate();
+  } else if (typeof dateInput === 'string') {
     const datePart = dateInput.split(/[ T]/)[0];
     const parts = datePart.split(/[-/]/);
-    
     if (parts.length === 3) {
-      let y, m, d;
       if (parts[0].length === 4) {
         y = parseInt(parts[0]);
         m = parseInt(parts[1]);
         d = parseInt(parts[2]);
-      } else if (parts[2].length === 4) {
+      } else {
         d = parseInt(parts[0]);
         m = parseInt(parts[1]);
         y = parseInt(parts[2]);
       }
-      
-      if (y !== undefined && m !== undefined && d !== undefined) {
-        if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
-          return new Date(y, m - 1, d);
-        }
-      }
     }
   }
+
+  if (y !== undefined && m !== undefined && d !== undefined && !isNaN(y) && !isNaN(m) && !isNaN(d)) {
+    return new Date(y, m - 1, d, 0, 0, 0, 0);
+  }
   
-  const d = new Date(dateInput);
-  return isNaN(d.getTime()) ? new Date() : d;
+  const fallback = new Date(dateInput);
+  return isNaN(fallback.getTime()) ? new Date() : fallback;
 };
 
 const formatDateToISO = (dateInput: any): string => {
@@ -330,12 +329,17 @@ const ScheduledProduction: React.FC<ScheduledProductionProps> = ({
           <div className="flex flex-wrap gap-4 items-center justify-between">
             <div className="bg-white p-3 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Mulai Produksi</label>
-              <input 
-                type="date" 
-                value={startDate} 
-                onChange={(e) => setStartDate(e.target.value)} 
-                className="bg-slate-50 px-3 py-1.5 rounded-xl text-xs font-black text-[#1C0770] outline-none border border-slate-100"
-              />
+              <div className="flex items-center gap-3">
+                <div className="flex flex-col">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 ml-1">Mulai Produksi</label>
+                  <input 
+                    type="date" 
+                    value={startDate} 
+                    onChange={(e) => setStartDate(e.target.value)} 
+                    className="bg-slate-50 px-4 py-2.5 rounded-2xl text-xs font-black text-[#1C0770] outline-none border border-slate-100 shadow-sm focus:ring-2 focus:ring-[#1C0770]/10 transition-all"
+                  />
+                </div>
+              </div>
             </div>
             <div className="flex gap-3">
                <button 

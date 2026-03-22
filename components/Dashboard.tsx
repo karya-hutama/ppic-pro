@@ -30,11 +30,39 @@ const Dashboard: React.FC<DashboardProps> = ({
   });
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
 
-  // Helper untuk normalisasi tanggal agar hanya YYYY-MM-DD
-  const normalizeDate = (d: string | Date) => {
+  // Helper untuk normalisasi tanggal agar hanya YYYY-MM-DD (Timezone Safe)
+  const normalizeDate = (d: any) => {
     if (!d) return "";
-    if (d instanceof Date) return d.toISOString().split('T')[0];
-    return d.split('T')[0];
+    let dateObj: Date;
+    
+    if (d instanceof Date) {
+      dateObj = d;
+    } else if (typeof d === 'string') {
+      const datePart = d.split(/[ T]/)[0];
+      const parts = datePart.split(/[-/]/);
+      if (parts.length === 3) {
+        let y, m, d_val;
+        if (parts[0].length === 4) {
+          y = parseInt(parts[0]);
+          m = parseInt(parts[1]);
+          d_val = parseInt(parts[2]);
+        } else {
+          d_val = parseInt(parts[0]);
+          m = parseInt(parts[1]);
+          y = parseInt(parts[2]);
+        }
+        return `${y}-${String(m).padStart(2, '0')}-${String(d_val).padStart(2, '0')}`;
+      }
+      dateObj = new Date(d);
+    } else {
+      dateObj = new Date(d);
+    }
+
+    if (isNaN(dateObj.getTime())) return "";
+    const year = dateObj.getFullYear();
+    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const day = String(dateObj.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   };
 
   // 1. Sinkronisasi Data Traffic (RM In vs FG Out)

@@ -5,34 +5,34 @@ import { SavedRMRequirement, RawMaterial, FinishGood } from '../types';
 
 const parseSafeDate = (dateInput: any): Date => {
   if (!dateInput) return new Date();
-  if (dateInput instanceof Date) return isNaN(dateInput.getTime()) ? new Date() : dateInput;
   
-  if (typeof dateInput === 'string') {
+  let y, m, d;
+  if (dateInput instanceof Date) {
+    y = dateInput.getFullYear();
+    m = dateInput.getMonth() + 1;
+    d = dateInput.getDate();
+  } else if (typeof dateInput === 'string') {
     const datePart = dateInput.split(/[ T]/)[0];
     const parts = datePart.split(/[-/]/);
-    
     if (parts.length === 3) {
-      let y, m, d;
       if (parts[0].length === 4) {
         y = parseInt(parts[0]);
         m = parseInt(parts[1]);
         d = parseInt(parts[2]);
-      } else if (parts[2].length === 4) {
+      } else {
         d = parseInt(parts[0]);
         m = parseInt(parts[1]);
         y = parseInt(parts[2]);
       }
-      
-      if (y !== undefined && m !== undefined && d !== undefined) {
-        if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
-          return new Date(y, m - 1, d);
-        }
-      }
     }
   }
+
+  if (y !== undefined && m !== undefined && d !== undefined && !isNaN(y) && !isNaN(m) && !isNaN(d)) {
+    return new Date(y, m - 1, d, 0, 0, 0, 0);
+  }
   
-  const d = new Date(dateInput);
-  return isNaN(d.getTime()) ? new Date() : d;
+  const fallback = new Date(dateInput);
+  return isNaN(fallback.getTime()) ? new Date() : fallback;
 };
 
 const formatDateToISO = (dateInput: any): string => {
