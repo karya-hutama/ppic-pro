@@ -90,8 +90,8 @@ const App: React.FC = () => {
         body: JSON.stringify({ action, ...payload }),
       }).then(() => {
         setIsSyncing(false);
-        // Silent refresh after post
-        setTimeout(() => fetchData(true), 1000);
+        // Silent refresh after post - increased delay to ensure sheet is committed
+        setTimeout(() => fetchData(true), 2000);
       });
       return true;
     } catch (e: any) {
@@ -120,10 +120,12 @@ const App: React.FC = () => {
 
   const handleSaveSchedule = async (scheduleData: Record<string, number[]>, startDate: string, targets?: Record<string, number>, existingId?: string) => {
     const totalBatches = Object.values(scheduleData).reduce((acc, days) => acc + days.reduce((a, b) => a + b, 0), 0);
+    const originalEntry = existingId ? productionHistory.find(h => h.id === existingId) : null;
+    
     const newEntry: SavedSchedule = {
       id: existingId || `SCH-${Date.now()}`,
       startDate,
-      createdAt: new Date().toISOString(),
+      createdAt: originalEntry ? originalEntry.createdAt : new Date().toISOString(),
       data: scheduleData,
       targets: targets || processedPlanningData || {},
       totalBatches
@@ -139,6 +141,7 @@ const App: React.FC = () => {
       triggerToast('Jadwal Disimpan');
     }
     setEditingSchedule(null);
+    setActiveTab('history'); // Switch to history to see the result
   };
 
   const handleSaveRMHistory = async (global: Record<string, number>, perSku: Record<string, Record<string, number>>, startDate: string) => {

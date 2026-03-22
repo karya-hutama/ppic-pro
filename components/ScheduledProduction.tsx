@@ -12,15 +12,30 @@ const parseSafeDate = (dateInput: any): Date => {
   if (dateInput instanceof Date) return isNaN(dateInput.getTime()) ? new Date() : dateInput;
   
   if (typeof dateInput === 'string') {
-    const datePart = dateInput.split('T')[0];
+    // Handle YYYY-MM-DD or DD-MM-YYYY or ISO string
+    // Split by T or space to get only the date part
+    const datePart = dateInput.split(/[ T]/)[0];
     const parts = datePart.split(/[-/]/);
+    
     if (parts.length === 3) {
-      const y = parseInt(parts[0]);
-      const m = parseInt(parts[1]);
-      const d = parseInt(parts[2]);
-      if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
-        if (y < 32 && d > 1000) return new Date(d, m - 1, y);
-        return new Date(y, m - 1, d);
+      let y, m, d;
+      // Check if first part is year (YYYY-MM-DD)
+      if (parts[0].length === 4) {
+        y = parseInt(parts[0]);
+        m = parseInt(parts[1]);
+        d = parseInt(parts[2]);
+      } 
+      // Check if last part is year (DD-MM-YYYY)
+      else if (parts[2].length === 4) {
+        d = parseInt(parts[0]);
+        m = parseInt(parts[1]);
+        y = parseInt(parts[2]);
+      }
+      
+      if (y !== undefined && m !== undefined && d !== undefined) {
+        if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+          return new Date(y, m - 1, d);
+        }
       }
     }
   }

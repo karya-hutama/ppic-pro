@@ -49,16 +49,21 @@ function doPost(e) {
   if (action === "updateSchedule") {
     const sheet = ss.getSheetByName("productionHistory");
     const vals = sheet.getDataRange().getValues();
+    let found = false;
     for (let i = 1; i < vals.length; i++) {
-      if (vals[i][0] === data.id) {
+      // Robust ID comparison
+      if (String(vals[i][0]).trim() === String(data.id).trim()) {
         sheet.getRange(i + 1, 2).setValue(JSON.stringify(data.data));
         sheet.getRange(i + 1, 3).setValue(data.startDate);
         sheet.getRange(i + 1, 4).setValue(data.createdAt);
         sheet.getRange(i + 1, 5).setValue(data.totalBatches);
         sheet.getRange(i + 1, 6).setValue(JSON.stringify(data.targets || {}));
+        found = true;
         break;
       }
     }
+    return ContentService.createTextOutput(JSON.stringify({success: found, message: found ? "Updated" : "ID not found"}))
+      .setMimeType(ContentService.MimeType.JSON);
   }
   
   if (action === "syncMasterRM") {
