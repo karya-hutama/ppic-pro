@@ -2,6 +2,9 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { SalesData, FinishGood } from '../types';
 import * as XLSX from 'xlsx';
+import { 
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
+} from 'recharts';
 
 interface SalesAnalysisProps {
   salesData: SalesData[];
@@ -30,6 +33,18 @@ const SalesAnalysis: React.FC<SalesAnalysisProps> = ({ salesData, finishGoods, o
   });
   
   const [showNotification, setShowNotification] = useState<string | null>(null);
+  const [activeAnalysisTab, setActiveAnalysisTab] = useState<'weekly' | 'monthly' | 'yearly'>('weekly');
+  const [selectedSkuId, setSelectedSkuId] = useState<string>(finishGoods[0]?.id || '');
+  
+  const [startMonth, setStartMonth] = useState(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 6);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
+  const [endMonth, setEndMonth] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
 
   const DAYS_ID = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 
@@ -164,6 +179,94 @@ const SalesAnalysis: React.FC<SalesAnalysisProps> = ({ salesData, finishGoods, o
     }
   };
 
+  // Helper to get week number
+  const getWeekNumber = (d: Date) => {
+    const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    const dayNum = date.getUTCDay() || 7;
+    date.setUTCDate(date.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+    const weekNo = Math.ceil((((date.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+    return `${date.getUTCFullYear()}-W${String(weekNo).padStart(2, '0')}`;
+  };
+
+  const chartData = useMemo(() => {
+    const filtered = salesData.filter(s => {
+      const sDate = cleanDate(s.date);
+      if (activeAnalysisTab === 'monthly') {
+        const [sYear, sMonth] = startMonth.split('-').map(Number);
+        const [eYear, eMonth] = endMonth.split('-').map(Number);
+        const [currYear, currMonth] = sDate.split('-').map(Number);
+        
+        const startVal = sYear * 12 + (sMonth - 1);
+        const endVal = eYear * 12 + (eMonth - 1);
+        const currVal = currYear * 12 + (currMonth - 1);
+        
+        return currVal >= startVal && currVal <= endVal;
+      }
+      return sDate && sDate >= startDate && sDate <= endDate;
+    });
+
+    const aggregation: Record<string, { global: number; perItem: number; compareGlobal: number; compareItem: number }> = {};
+
+    // Helper to get previous year date string
+    const getPrevYearDate = (dateStr: string) => {
+      const [y, m, d] = dateStr.split('-').map(Number);
+      return `${y - 1}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    };
+
+    filtered.forEach(s => {
+      const dateObj = new Date(s.date);
+      let key = '';
+      
+      if (activeAnalysisTab === 'weekly') {
+        key = getWeekNumber(dateObj);
+      } else if (activeAnalysisTab === 'monthly') {
+        key = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
+      } else {
+        key = `${dateObj.getFullYear()}`;
+      }
+
+      if (!aggregation[key]) {
+        aggregation[key] = { global: 0, perItem: 0, compareGlobal: 0, compareItem: 0 };
+      }
+
+      const qty = Number(s.quantitySold ?? 0);
+      aggregation[key].global += qty;
+      if (s.skuId === selectedSkuId) {
+        aggregation[key].perItem += qty;
+      }
+    });
+
+    // Add comparison data for monthly
+    if (activeAnalysisTab === 'monthly') {
+      Object.keys(aggregation).forEach(key => {
+        const [y, m] = key.split('-').map(Number);
+        const prevYear = y - 1;
+        const prevKey = `${prevYear}-${String(m).padStart(2, '0')}`;
+        
+        const prevYearSales = salesData.filter(s => {
+          const d = cleanDate(s.date);
+          return d.startsWith(prevKey);
+        });
+
+        aggregation[key].compareGlobal = prevYearSales.reduce((sum, s) => sum + Number(s.quantitySold || 0), 0);
+        aggregation[key].compareItem = prevYearSales
+          .filter(s => s.skuId === selectedSkuId)
+          .reduce((sum, s) => sum + Number(s.quantitySold || 0), 0);
+      });
+    }
+
+    return Object.entries(aggregation)
+      .map(([name, data]) => ({
+        name,
+        global: data.global,
+        perItem: data.perItem,
+        compareGlobal: data.compareGlobal,
+        compareItem: data.compareItem
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [salesData, startDate, endDate, activeAnalysisTab, selectedSkuId, startMonth, endMonth]);
+
   return (
     <div className="p-4 md:p-8 space-y-8 animate-in fade-in duration-500">
       {showNotification && (
@@ -211,6 +314,122 @@ const SalesAnalysis: React.FC<SalesAnalysisProps> = ({ salesData, finishGoods, o
                <div className="text-[8px] font-black text-indigo-400 uppercase">Analisa Periode</div>
                <div className="text-xs font-black text-[#1C0770]">{analysis.calendarDays} Hari</div>
             </div>
+        </div>
+      </div>
+
+      {/* Tabs Menu */}
+      <div className="flex flex-col space-y-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-2 bg-white p-2 rounded-[24px] border border-slate-100 shadow-sm w-fit">
+            {(['weekly', 'monthly', 'yearly'] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveAnalysisTab(tab)}
+                className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                  activeAnalysisTab === tab 
+                    ? 'bg-[#1C0770] text-white shadow-lg' 
+                    : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                {tab === 'weekly' ? 'Mingguan' : tab === 'monthly' ? 'Bulanan' : 'Tahunan'}
+              </button>
+            ))}
+          </div>
+
+          {activeAnalysisTab === 'monthly' && (
+            <div className="flex flex-wrap items-center gap-4 bg-white p-3 rounded-[24px] border border-slate-100 shadow-sm">
+              <div className="flex items-center gap-2">
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Dari Bulan</label>
+                <input 
+                  type="month" 
+                  value={startMonth} 
+                  onChange={(e) => setStartMonth(e.target.value)}
+                  className="px-3 py-1.5 bg-slate-50 border border-slate-100 rounded-xl text-[10px] font-bold text-[#1C0770] outline-none"
+                />
+              </div>
+              <div className="w-[1px] h-6 bg-slate-100"></div>
+              <div className="flex items-center gap-2">
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Sampai Bulan</label>
+                <input 
+                  type="month" 
+                  value={endMonth} 
+                  onChange={(e) => setEndMonth(e.target.value)}
+                  className="px-3 py-1.5 bg-slate-50 border border-slate-100 rounded-xl text-[10px] font-bold text-[#1C0770] outline-none"
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Global Sales Chart */}
+          <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm">
+            <div className="flex justify-between items-center mb-8">
+              <div>
+                <h3 className="text-lg font-black text-slate-800 tracking-tight">Penjualan Global</h3>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">
+                  {activeAnalysisTab === 'monthly' ? `Tren Bulanan: ${startMonth} s/d ${endMonth}` : 'Total Qty Semua Item'}
+                </p>
+              </div>
+            </div>
+            <div className="h-[300px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData as any[]}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#94A3B8', fontWeight: 700}} />
+                  <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#94A3B8', fontWeight: 700}} />
+                  <Tooltip 
+                    contentStyle={{borderRadius: '24px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)'}} 
+                    labelStyle={{fontWeight: 900, color: '#1C0770', fontSize: '12px'}}
+                  />
+                  <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: '10px', fontWeight: 900, textTransform: 'uppercase' }} />
+                  <Line type="monotone" dataKey="global" name="Global Qty" stroke="#1C0770" strokeWidth={4} dot={{ r: 4, fill: '#1C0770', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6 }} />
+                  {activeAnalysisTab === 'monthly' && (
+                    <Line type="monotone" dataKey="compareGlobal" name="Global (Tahun Lalu)" stroke="#F59E0B" strokeWidth={2} strokeDasharray="5 5" dot={{ r: 3, fill: '#F59E0B' }} activeDot={{ r: 5 }} />
+                  )}
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Per Item Sales Chart */}
+          <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+              <div>
+                <h3 className="text-lg font-black text-slate-800 tracking-tight">Penjualan Per Item</h3>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">
+                  {activeAnalysisTab === 'monthly' ? `Tren Bulanan: ${startMonth} s/d ${endMonth}` : 'Qty Berdasarkan SKU Terpilih'}
+                </p>
+              </div>
+              <select 
+                value={selectedSkuId} 
+                onChange={(e) => setSelectedSkuId(e.target.value)}
+                className="px-4 py-2 bg-slate-50 border border-slate-100 rounded-xl text-[10px] font-black uppercase tracking-widest text-[#1C0770] outline-none focus:ring-2 ring-indigo-100"
+              >
+                {finishGoods.map(fg => (
+                  <option key={fg.id} value={fg.id}>{fg.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="h-[300px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData as any[]}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#94A3B8', fontWeight: 700}} />
+                  <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#94A3B8', fontWeight: 700}} />
+                  <Tooltip 
+                    contentStyle={{borderRadius: '24px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)'}} 
+                    labelStyle={{fontWeight: 900, color: '#1C0770', fontSize: '12px'}}
+                  />
+                  <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: '10px', fontWeight: 900, textTransform: 'uppercase' }} />
+                  <Line type="monotone" dataKey="perItem" name="Item Qty" stroke="#10B981" strokeWidth={4} dot={{ r: 4, fill: '#10B981', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6 }} />
+                  {activeAnalysisTab === 'monthly' && (
+                    <Line type="monotone" dataKey="compareItem" name="Item (Tahun Lalu)" stroke="#F59E0B" strokeWidth={2} strokeDasharray="5 5" dot={{ r: 3, fill: '#F59E0B' }} activeDot={{ r: 5 }} />
+                  )}
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
         </div>
       </div>
 
