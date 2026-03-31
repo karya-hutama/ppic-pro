@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { RawMaterial, FinishGood } from '../types';
+import { RawMaterial, FinishGood, SavedRMRequirement } from '../types';
 
 const DAYS_NAME = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 
@@ -82,7 +82,14 @@ interface ScheduledProductionProps {
   peakDayRecommendations?: Record<string, number>;
   transferredAnalysis?: any[] | null;
   onSave?: (schedule: Record<string, number[]>, startDate: string, targets: Record<string, number>, existingId?: string) => void;
-  onSaveRMHistory?: (global: Record<string, number>, perSku: Record<string, Record<string, number>>, startDate: string, totalBatches?: number, perSkuBatches?: Record<string, number>) => void;
+  onSaveRMHistory?: (
+    global: Record<string, number>, 
+    perSku: Record<string, Record<string, number>>, 
+    startDate: string, 
+    totalBatches?: number, 
+    perSkuBatches?: Record<string, number>,
+    dailyData?: SavedRMRequirement['dailyData']
+  ) => void;
   onSyncToROP?: (requirements: any[]) => void;
 }
 
@@ -100,6 +107,7 @@ const ScheduledProduction: React.FC<ScheduledProductionProps> = ({
   onSyncToROP 
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'schedule' | 'rm-needs'>('schedule');
+  const [rmViewMode, setRmViewMode] = useState<'weekly' | 'daily'>('weekly');
   const [startDate, setStartDate] = useState(() => {
     if (initialStartDate) return formatDateToISO(initialStartDate);
     return formatDateToISO(new Date());
@@ -224,6 +232,48 @@ const ScheduledProduction: React.FC<ScheduledProductionProps> = ({
 
     return { global, perSku, totalBatchesGlobal, perSkuBatches };
   }, [schedule, activeFinishGoods, rawMaterials]);
+
+  const dailyRmNeeds = useMemo(() => {
+    const daily: Array<{
+      date: Date;
+      formatted: string;
+      dayName: string;
+      global: Record<string, number>;
+      perSku: Record<string, Record<string, number>>;
+    }> = scheduleDates.map(d => ({
+      date: d.fullDate,
+      formatted: d.formatted,
+      dayName: d.dayName,
+      global: {},
+      perSku: {}
+    }));
+
+    activeFinishGoods.forEach(fg => {
+      const skuSchedule = schedule[fg.id] || new Array(7).fill(0);
+      skuSchedule.forEach((batches, dayIdx) => {
+        if (batches > 0) {
+          if (!daily[dayIdx].perSku[fg.id]) daily[dayIdx].perSku[fg.id] = {};
+          
+          (fg.ingredients || []).forEach(ing => {
+            const amountNeeded = batches * Number(ing.quantity || 0);
+            const material = rawMaterials.find(m => m.id === ing.materialId);
+            
+            if (material?.isProcessed && material.sourceMaterialId && material.sourceMaterialId !== material.id) {
+              const yieldFactor = material.processingYield || 1;
+              const convertedSourceAmount = amountNeeded / yieldFactor;
+              daily[dayIdx].global[material.sourceMaterialId] = (daily[dayIdx].global[material.sourceMaterialId] || 0) + convertedSourceAmount;
+              daily[dayIdx].perSku[fg.id][ing.materialId] = amountNeeded;
+            } else {
+              daily[dayIdx].global[ing.materialId] = (daily[dayIdx].global[ing.materialId] || 0) + amountNeeded;
+              daily[dayIdx].perSku[fg.id][ing.materialId] = amountNeeded;
+            }
+          });
+        }
+      });
+    });
+
+    return daily;
+  }, [schedule, activeFinishGoods, rawMaterials, scheduleDates]);
 
   const handleSyncToROP = () => {
     const requirements = Object.entries(rmNeeds.global).map(([id, amount]) => {
@@ -461,15 +511,32 @@ const ScheduledProduction: React.FC<ScheduledProductionProps> = ({
         </div>
       ) : (
         <div className="space-y-10 animate-in slide-in-from-right-4">
-          <div className="flex justify-between items-center">
+          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
              <div className="flex items-center gap-4">
                 <div className="w-12 h-12 bg-indigo-50 text-[#1C0770] rounded-2xl flex items-center justify-center text-xl shadow-sm">📊</div>
                 <div>
                    <h3 className="text-xl font-black text-slate-800 tracking-tight">Kalkulasi Raw Material (Purchasing Focus)</h3>
-                   <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Rencana Produksi: {parseSafeDate(startDate).toLocaleDateString('id-ID', {day: 'numeric', month: 'long'})}</p>
+                   <div className="flex items-center gap-3 mt-1">
+                      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Rencana Produksi: {parseSafeDate(startDate).toLocaleDateString('id-ID', {day: 'numeric', month: 'long'})}</p>
+                      <div className="h-4 w-px bg-slate-200"></div>
+                      <div className="flex bg-slate-100 p-1 rounded-xl">
+                        <button 
+                          onClick={() => setRmViewMode('weekly')}
+                          className={`px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${rmViewMode === 'weekly' ? 'bg-white text-[#1C0770] shadow-sm' : 'text-slate-400'}`}
+                        >
+                          Mingguan
+                        </button>
+                        <button 
+                          onClick={() => setRmViewMode('daily')}
+                          className={`px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${rmViewMode === 'daily' ? 'bg-white text-[#1C0770] shadow-sm' : 'text-slate-400'}`}
+                        >
+                          Harian
+                        </button>
+                      </div>
+                   </div>
                 </div>
              </div>
-             <div className="flex gap-4">
+             <div className="flex flex-wrap gap-4 w-full lg:w-auto">
                 <button 
                   onClick={handleDownloadPDF}
                   className="px-6 py-4 bg-rose-500 text-white rounded-2xl font-black uppercase text-[10px] hover:bg-rose-600 transition-all shadow-sm flex items-center gap-2"
@@ -483,7 +550,18 @@ const ScheduledProduction: React.FC<ScheduledProductionProps> = ({
                   <span>📥</span> Download Excel
                 </button>
                 <button 
-                  onClick={() => onSaveRMHistory?.(rmNeeds.global, rmNeeds.perSku, startDate, rmNeeds.totalBatchesGlobal, rmNeeds.perSkuBatches)}
+                  onClick={() => onSaveRMHistory?.(
+                    rmNeeds.global, 
+                    rmNeeds.perSku, 
+                    formatDateToISO(startDate), 
+                    rmNeeds.totalBatchesGlobal, 
+                    rmNeeds.perSkuBatches,
+                    dailyRmNeeds.map(d => ({
+                      date: d.formatted,
+                      global: d.global,
+                      perSku: d.perSku
+                    }))
+                  )}
                   className="px-6 py-4 bg-slate-100 text-slate-500 rounded-2xl font-black uppercase text-[10px] hover:bg-slate-200 transition-all"
                 >
                   💾 Archive Perhitungan
@@ -498,78 +576,163 @@ const ScheduledProduction: React.FC<ScheduledProductionProps> = ({
              </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-             <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden flex flex-col">
-                <div className="px-10 py-7 border-b border-slate-50 bg-slate-50/30 flex justify-between items-center">
-                   <h4 className="font-black text-slate-800 text-sm uppercase tracking-widest">Kebutuhan Barang Beli (PO)</h4>
-                   <span className="text-[10px] font-bold text-indigo-500 italic">*Sudah dikonversi dari material giling</span>
+          {rmViewMode === 'weekly' ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in fade-in duration-300">
+               <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden flex flex-col">
+                  <div className="px-10 py-7 border-b border-slate-50 bg-slate-50/30 flex justify-between items-center">
+                     <h4 className="font-black text-slate-800 text-sm uppercase tracking-widest">Kebutuhan Barang Beli (PO)</h4>
+                     <span className="text-[10px] font-bold text-indigo-500 italic">*Sudah dikonversi dari material giling</span>
+                  </div>
+                  <div className="overflow-x-auto">
+                     <table className="w-full text-left">
+                        <thead className="bg-slate-50/50 text-[9px] uppercase font-black text-slate-400">
+                           <tr>
+                              <th className="px-10 py-4">Nama Barang (Purchasable)</th>
+                              <th className="px-6 py-4 text-right">Total Requirement</th>
+                           </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                           {Object.keys(rmNeeds.global || {}).length === 0 ? (
+                             <tr><td colSpan={2} className="px-10 py-20 text-center text-slate-300 italic">Belum ada jadwal terisi.</td></tr>
+                           ) : (
+                             Object.entries(rmNeeds.global).map(([id, amount]) => {
+                               const rm = (rawMaterials || []).find(m => m.id === id);
+                               return (
+                                 <tr key={id} className="hover:bg-slate-50/50 transition-colors">
+                                    <td className="px-10 py-5 font-bold text-slate-700">
+                                      {rm?.name || id}
+                                      {rm?.isProcessed && <span className="ml-2 text-[8px] bg-amber-100 text-amber-600 px-2 py-0.5 rounded-full uppercase">Processed Material</span>}
+                                    </td>
+                                    <td className="px-6 py-5 text-right font-black text-[#1C0770]">{Math.ceil(amount).toLocaleString()} <span className="text-[10px] text-slate-300 font-bold ml-1">{rm?.usageUnit}</span></td>
+                                 </tr>
+                               )
+                             })
+                           )}
+                        </tbody>
+                     </table>
+                  </div>
+               </div>
+               <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden flex flex-col">
+                  <div className="px-10 py-7 border-b border-slate-50 bg-slate-50/30">
+                     <h4 className="font-black text-slate-800 text-sm uppercase tracking-widest">Pemakaian Per SKU (Resep)</h4>
+                  </div>
+                  <div className="p-8 space-y-6 overflow-y-auto max-h-[500px] custom-scrollbar">
+                     {Object.entries(rmNeeds.perSku || {}).length === 0 ? (
+                       <div className="py-20 text-center text-slate-300 italic">Belum ada data distribusi.</div>
+                     ) : (
+                       Object.entries(rmNeeds.perSku).map(([skuId, needs]) => {
+                         const sku = activeFinishGoods.find(s => s.id === skuId);
+                         return (
+                           <div key={skuId} className="bg-slate-50 rounded-[32px] p-6 border border-slate-100">
+                              <div className="flex justify-between items-center mb-4 pb-4 border-b border-slate-200/50">
+                                 <div className="font-black text-slate-800 text-xs uppercase tracking-tight">{sku?.name}</div>
+                                 <div className="px-3 py-1 bg-white rounded-lg text-[9px] font-black text-indigo-400 shadow-sm">{skuId}</div>
+                              </div>
+                              <div className="space-y-3">
+                                 {Object.entries(needs || {}).map(([rmId, amount]) => {
+                                    const rm = (rawMaterials || []).find(m => m.id === rmId);
+                                    return (
+                                      <div key={rmId} className="flex justify-between items-center text-[11px]">
+                                         <span className="text-slate-500 font-medium">
+                                           {rm?.name}
+                                           {rm?.isProcessed && <span className="ml-1 text-[8px] text-amber-500 font-bold">(Giling)</span>}
+                                         </span>
+                                         <span className="font-black text-slate-800">{amount.toLocaleString()} {rm?.usageUnit}</span>
+                                      </div>
+                                    )
+                                 })}
+                              </div>
+                           </div>
+                         )
+                       })
+                     )}
+                  </div>
+               </div>
+            </div>
+          ) : (
+            <div className="space-y-8 animate-in fade-in duration-300">
+              {dailyRmNeeds.map((day, idx) => {
+                const hasData = Object.keys(day.global).length > 0;
+                if (!hasData) return null;
+
+                return (
+                  <div key={idx} className="bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden">
+                    <div className="px-10 py-6 border-b border-slate-50 bg-slate-50/20 flex justify-between items-center">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 bg-[#1C0770] text-white rounded-xl flex items-center justify-center font-black text-xs">
+                          {day.date.getDate()}
+                        </div>
+                        <div>
+                          <h4 className="font-black text-slate-800 text-sm uppercase tracking-tight">{day.dayName}, {day.formatted}</h4>
+                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Kebutuhan Produksi Harian</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-8">
+                        <div className="text-right">
+                          <div className="text-sm font-black text-[#1C0770]">{Object.keys(day.global).length}</div>
+                          <div className="text-[8px] font-bold text-slate-300 uppercase">Items</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm font-black text-[#1C0770]">{Object.keys(day.perSku).length}</div>
+                          <div className="text-[8px] font-bold text-slate-300 uppercase">SKUs</div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="p-8 grid grid-cols-1 lg:grid-cols-2 gap-8">
+                      <div>
+                        <h5 className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-4">Ringkasan Material</h5>
+                        <div className="space-y-2">
+                          {Object.entries(day.global).map(([id, amount]) => {
+                            const rm = rawMaterials.find(m => m.id === id);
+                            return (
+                              <div key={id} className="flex justify-between items-center bg-slate-50 px-5 py-3 rounded-2xl border border-slate-100/50">
+                                <span className="text-xs font-bold text-slate-600">{rm?.name || id}</span>
+                                <span className="text-xs font-black text-[#1C0770]">{Math.ceil(amount).toLocaleString()} <span className="text-[10px] text-slate-300 ml-1">{rm?.usageUnit}</span></span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      <div>
+                        <h5 className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-4">Rincian Per SKU</h5>
+                        <div className="grid grid-cols-1 gap-4">
+                          {Object.entries(day.perSku).map(([skuId, needs]) => {
+                            const sku = activeFinishGoods.find(s => s.id === skuId);
+                            const batches = schedule[skuId]?.[idx] || 0;
+                            return (
+                              <div key={skuId} className="border border-slate-100 rounded-2xl p-4">
+                                <div className="flex justify-between items-center mb-3">
+                                  <span className="text-[10px] font-black text-slate-800 uppercase">{sku?.name}</span>
+                                  <span className="text-[9px] font-bold text-indigo-400 bg-indigo-50 px-2 py-0.5 rounded-lg">{batches} Batches</span>
+                                </div>
+                                <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                                  {Object.entries(needs).map(([rmId, amount]) => {
+                                    const rm = rawMaterials.find(m => m.id === rmId);
+                                    return (
+                                      <div key={rmId} className="flex justify-between text-[9px]">
+                                        <span className="text-slate-400">{rm?.name}</span>
+                                        <span className="font-bold text-slate-700">{amount.toLocaleString()} {rm?.usageUnit}</span>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              {dailyRmNeeds.every(day => Object.keys(day.global).length === 0) && (
+                <div className="bg-white p-20 rounded-[40px] border border-dashed border-slate-200 text-center">
+                  <span className="text-5xl block mb-4 opacity-20">📅</span>
+                  <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Belum ada jadwal produksi harian terisi</p>
                 </div>
-                <div className="overflow-x-auto">
-                   <table className="w-full text-left">
-                      <thead className="bg-slate-50/50 text-[9px] uppercase font-black text-slate-400">
-                         <tr>
-                            <th className="px-10 py-4">Nama Barang (Purchasable)</th>
-                            <th className="px-6 py-4 text-right">Total Requirement</th>
-                         </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-50">
-                         {Object.keys(rmNeeds.global || {}).length === 0 ? (
-                           <tr><td colSpan={2} className="px-10 py-20 text-center text-slate-300 italic">Belum ada jadwal terisi.</td></tr>
-                         ) : (
-                           Object.entries(rmNeeds.global).map(([id, amount]) => {
-                             const rm = (rawMaterials || []).find(m => m.id === id);
-                             return (
-                               <tr key={id} className="hover:bg-slate-50/50 transition-colors">
-                                  <td className="px-10 py-5 font-bold text-slate-700">
-                                    {rm?.name || id}
-                                    {rm?.isProcessed && <span className="ml-2 text-[8px] bg-amber-100 text-amber-600 px-2 py-0.5 rounded-full uppercase">Processed Material</span>}
-                                  </td>
-                                  <td className="px-6 py-5 text-right font-black text-[#1C0770]">{Math.ceil(amount).toLocaleString()} <span className="text-[10px] text-slate-300 font-bold ml-1">{rm?.usageUnit}</span></td>
-                               </tr>
-                             )
-                           })
-                         )}
-                      </tbody>
-                   </table>
-                </div>
-             </div>
-             <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden flex flex-col">
-                <div className="px-10 py-7 border-b border-slate-50 bg-slate-50/30">
-                   <h4 className="font-black text-slate-800 text-sm uppercase tracking-widest">Pemakaian Per SKU (Resep)</h4>
-                </div>
-                <div className="p-8 space-y-6 overflow-y-auto max-h-[500px] custom-scrollbar">
-                   {Object.entries(rmNeeds.perSku || {}).length === 0 ? (
-                     <div className="py-20 text-center text-slate-300 italic">Belum ada data distribusi.</div>
-                   ) : (
-                     Object.entries(rmNeeds.perSku).map(([skuId, needs]) => {
-                       const sku = activeFinishGoods.find(s => s.id === skuId);
-                       return (
-                         <div key={skuId} className="bg-slate-50 rounded-[32px] p-6 border border-slate-100">
-                            <div className="flex justify-between items-center mb-4 pb-4 border-b border-slate-200/50">
-                               <div className="font-black text-slate-800 text-xs uppercase tracking-tight">{sku?.name}</div>
-                               <div className="px-3 py-1 bg-white rounded-lg text-[9px] font-black text-indigo-400 shadow-sm">{skuId}</div>
-                            </div>
-                            <div className="space-y-3">
-                               {Object.entries(needs || {}).map(([rmId, amount]) => {
-                                  const rm = (rawMaterials || []).find(m => m.id === rmId);
-                                  return (
-                                    <div key={rmId} className="flex justify-between items-center text-[11px]">
-                                       <span className="text-slate-500 font-medium">
-                                         {rm?.name}
-                                         {rm?.isProcessed && <span className="ml-1 text-[8px] text-amber-500 font-bold">(Giling)</span>}
-                                       </span>
-                                       <span className="font-black text-slate-800">{amount.toLocaleString()} {rm?.usageUnit}</span>
-                                    </div>
-                                  )
-                               })}
-                            </div>
-                         </div>
-                       )
-                     })
-                   )}
-                </div>
-             </div>
-          </div>
+              )}
+            </div>
+          )}
           
           <div className="bg-amber-50 p-8 rounded-[40px] border border-amber-100 flex flex-col md:flex-row items-center justify-between gap-6 shadow-sm">
              <div className="flex items-center gap-5">

@@ -149,7 +149,18 @@ const App: React.FC = () => {
     setActiveTab('history'); // Switch to history to see the result
   };
 
-  const handleSaveRMHistory = async (global: Record<string, number>, perSku: Record<string, Record<string, number>>, startDate: string, totalBatches?: number, perSkuBatches?: Record<string, number>) => {
+  const handleSaveRMHistory = async (
+    global: Record<string, number>, 
+    perSku: Record<string, Record<string, number>>, 
+    startDate: string, 
+    totalBatches?: number, 
+    perSkuBatches?: Record<string, number>,
+    dailyData?: Array<{
+      date: string;
+      global: Record<string, number>;
+      perSku: Record<string, Record<string, number>>;
+    }>
+  ) => {
     const newEntry: SavedRMRequirement = {
       id: `RMH-${Date.now()}`,
       startDate,
@@ -157,7 +168,8 @@ const App: React.FC = () => {
       globalData: global,
       perSkuData: perSku,
       totalBatches,
-      perSkuBatches
+      perSkuBatches,
+      dailyData
     };
     setRmHistory([newEntry, ...rmHistory]); // Optimistic
     postData('saveRMRequirement', newEntry);
