@@ -152,18 +152,30 @@ const Dashboard: React.FC<DashboardProps> = ({
   // 4. Leaderboard SKU Paling Banyak Diproduksi
   const topProduced = useMemo(() => {
     const totals: Record<string, number> = {};
+    const dStart = normalizeDate(startDate);
+    const dEnd = normalizeDate(endDate);
+
     (productionHistory || []).forEach(sch => {
-      if (!sch || !sch.data) return;
+      if (!sch || !sch.data || !sch.startDate) return;
       
       let scheduleMap: any = sch.data;
       if (typeof scheduleMap === 'string') {
         try { scheduleMap = JSON.parse(scheduleMap); } catch(e) { scheduleMap = {}; }
       }
 
+      const schStart = new Date(sch.startDate);
+
       Object.entries(scheduleMap).forEach(([skuId, batches]) => {
         if (Array.isArray(batches)) {
-          const sum = batches.reduce((a, b) => a + (Number(b) || 0), 0);
-          totals[skuId] = (totals[skuId] || 0) + sum;
+          batches.forEach((batchQty, index) => {
+            const batchDate = new Date(schStart);
+            batchDate.setDate(batchDate.getDate() + index);
+            const batchDateStr = normalizeDate(batchDate);
+
+            if (batchDateStr >= dStart && batchDateStr <= dEnd) {
+              totals[skuId] = (totals[skuId] || 0) + (Number(batchQty) || 0);
+            }
+          });
         }
       });
     });
@@ -177,11 +189,39 @@ const Dashboard: React.FC<DashboardProps> = ({
       }))
       .filter(item => item.value > 0)
       .sort((a, b) => b.value - a.value);
-  }, [productionHistory, finishGoods]);
+  }, [productionHistory, finishGoods, startDate, endDate]);
 
   const totalProductionCount = useMemo(() => {
-    return (productionHistory || []).reduce((acc, curr) => acc + (Number(curr.totalBatches) || 0), 0);
-  }, [productionHistory]);
+    let total = 0;
+    const dStart = normalizeDate(startDate);
+    const dEnd = normalizeDate(endDate);
+
+    (productionHistory || []).forEach(sch => {
+      if (!sch || !sch.data || !sch.startDate) return;
+      
+      let scheduleMap: any = sch.data;
+      if (typeof scheduleMap === 'string') {
+        try { scheduleMap = JSON.parse(scheduleMap); } catch(e) { scheduleMap = {}; }
+      }
+
+      const schStart = new Date(sch.startDate);
+
+      Object.values(scheduleMap).forEach((batches: any) => {
+        if (Array.isArray(batches)) {
+          batches.forEach((batchQty, index) => {
+            const batchDate = new Date(schStart);
+            batchDate.setDate(batchDate.getDate() + index);
+            const batchDateStr = normalizeDate(batchDate);
+
+            if (batchDateStr >= dStart && batchDateStr <= dEnd) {
+              total += (Number(batchQty) || 0);
+            }
+          });
+        }
+      });
+    });
+    return total;
+  }, [productionHistory, startDate, endDate]);
 
   return (
     <div className="py-6 space-y-8 animate-in fade-in duration-700">
