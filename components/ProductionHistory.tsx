@@ -3,6 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { SavedSchedule, FinishGood } from '../types';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 
 const DAYS_NAME = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 
@@ -79,6 +80,7 @@ interface ProductionHistoryProps {
 }
 
 const ProductionHistory: React.FC<ProductionHistoryProps> = ({ history = [], finishGoods = [], onEdit, onRefresh }) => {
+  const [mainTab, setMainTab] = useState<'weekly' | 'daily'>('weekly');
   const [selectedSchedule, setSelectedSchedule] = useState<SavedSchedule | null>(null);
   const [detailTab, setDetailTab] = useState<'batch' | 'output'>('batch');
   
@@ -145,6 +147,72 @@ const ProductionHistory: React.FC<ProductionHistoryProps> = ({ history = [], fin
     setFilterEnd('');
   };
 
+  const allDailyHistory = useMemo(() => {
+    const dailyList: {
+      parentScheduleId: string;
+      parentCreatedAt: string;
+      parentStartDate: string;
+      date: string;
+      rawDate: string;
+      dayName: string;
+      perSku: Record<string, { batches: number; packs: number }>;
+    }[] = [];
+
+    safeHistory.forEach(schedule => {
+      const dates = getScheduleDates(schedule.startDate);
+      let scheduleMap: any = schedule.data || {};
+      if (typeof scheduleMap === 'string') {
+        try { scheduleMap = JSON.parse(scheduleMap); } catch (e) { scheduleMap = {}; }
+      }
+
+      dates.forEach((day, dayIdx) => {
+        const perSku: Record<string, { batches: number; packs: number }> = {};
+        let hasData = false;
+
+        finishGoods.forEach(fg => {
+          const rawBatchValues = scheduleMap[fg.id] || null;
+          let dailyBatches: number[] = new Array(7).fill(0);
+          if (Array.isArray(rawBatchValues)) {
+            dailyBatches = rawBatchValues.map(v => Number(v) || 0);
+          }
+          const batches = dailyBatches[dayIdx] || 0;
+          if (batches > 0) {
+            perSku[fg.id] = {
+              batches,
+              packs: batches * (fg.qtyPerBatch || 1)
+            };
+            hasData = true;
+          }
+        });
+
+        if (hasData) {
+          dailyList.push({
+            parentScheduleId: schedule.id,
+            parentCreatedAt: schedule.createdAt || '',
+            parentStartDate: schedule.startDate,
+            date: day.formatted,
+            rawDate: formatDateToISO(day.fullDate),
+            dayName: day.dayName,
+            perSku
+          });
+        }
+      });
+    });
+
+    return dailyList.sort((a, b) => new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime());
+  }, [safeHistory, finishGoods]);
+
+  const filteredDailyHistory = useMemo(() => {
+    let data = allDailyHistory;
+    if (filterStart) {
+      data = data.filter(d => d.rawDate >= filterStart);
+    }
+    if (filterEnd) {
+      data = data.filter(d => d.rawDate <= filterEnd);
+    }
+    return data;
+  }, [allDailyHistory, filterStart, filterEnd]);
+
   const detailData = useMemo(() => {
     if (!selectedSchedule) return [];
     
@@ -206,6 +274,30 @@ const ProductionHistory: React.FC<ProductionHistoryProps> = ({ history = [], fin
     .sort((a, b) => a.name.localeCompare(b.name));
   }, [selectedSchedule, finishGoods]);
 
+  const handleDownloadDailyExcel = () => {
+    const dataToExport: any[] = [];
+
+    filteredDailyHistory.forEach(day => {
+      Object.entries(day.perSku).forEach(([skuId, data]) => {
+        const sku = finishGoods.find(s => s.id === skuId);
+        dataToExport.push({
+          'Tanggal Produksi': day.date,
+          'Hari': day.dayName,
+          'Dari Jadwal Mingguan': parseSafeDate(day.parentStartDate).toLocaleDateString('id-ID', {day: 'numeric', month: 'long', year: 'numeric'}),
+          'Product/SKU': sku?.name || skuId,
+          'SKU ID': skuId,
+          'Batches': data.batches,
+          'Estimasi Packs': data.packs
+        });
+      });
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Jadwal_Harian");
+    XLSX.writeFile(workbook, "Jadwal_Produksi_Harian.xlsx");
+  };
+
   const handleDownloadPDF = () => {
     if (!selectedSchedule) return;
     const doc = new jsPDF({ orientation: 'landscape' });
@@ -245,76 +337,158 @@ const ProductionHistory: React.FC<ProductionHistoryProps> = ({ history = [], fin
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
           <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Production History</h1>
-          <p className="text-slate-500 mt-1 text-sm font-medium italic">Arsip jadwal produksi terkonfirmasi</p>
+          <p className="text-slate-500 mt-1 text-sm font-medium italic">Arsip jadwal produksi {mainTab === 'weekly' ? 'mingguan' : 'harian'}</p>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-white p-3 rounded-[28px] border border-slate-100 shadow-sm w-full md:w-auto">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center px-4 gap-3 border-b sm:border-b-0 sm:border-r border-slate-100 pb-3 sm:pb-0">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Filter Tanggal</span>
-            <div className="flex items-center gap-2">
-              <input 
-                type="date" 
-                value={filterStart} 
-                onChange={(e) => setFilterStart(e.target.value)} 
-                className="text-xs font-bold text-[#1C0770] bg-transparent outline-none" 
-              />
-              <span className="text-slate-300">→</span>
-              <input 
-                type="date" 
-                value={filterEnd} 
-                onChange={(e) => setFilterEnd(e.target.value)} 
-                className="text-xs font-bold text-[#1C0770] bg-transparent outline-none" 
-              />
-            </div>
-          </div>
-          {onRefresh && (
+        <div className="flex flex-col xl:flex-row items-stretch xl:items-center gap-3 w-full md:w-auto">
+          {mainTab === 'daily' && (
             <button 
-              onClick={onRefresh} 
-              className="px-5 py-2.5 bg-[#1C0770] text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all active:scale-95 w-full sm:w-auto flex items-center justify-center gap-2"
+              onClick={handleDownloadDailyExcel}
+              className="px-6 py-3 bg-emerald-500 text-white rounded-[28px] text-xs font-bold uppercase tracking-widest hover:bg-emerald-600 transition-all shadow-sm flex items-center justify-center gap-2"
             >
-              <span>🔄</span> Refresh
+              <span>📥</span> Download Excel
             </button>
           )}
-          {(filterStart || filterEnd) && (
-            <button onClick={handleResetFilter} className="px-4 py-2 bg-slate-100 text-slate-500 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-slate-200 h-[34px]">Reset</button>
-          )}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-white p-3 rounded-[28px] border border-slate-100 shadow-sm w-full md:w-auto">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center px-4 gap-3 border-b sm:border-b-0 sm:border-r border-slate-100 pb-3 sm:pb-0">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Filter Tanggal</span>
+              <div className="flex items-center gap-2">
+                <input 
+                  type="date" 
+                  value={filterStart} 
+                  onChange={(e) => setFilterStart(e.target.value)} 
+                  className="text-xs font-bold text-[#1C0770] bg-transparent outline-none" 
+                />
+                <span className="text-slate-300">→</span>
+                <input 
+                  type="date" 
+                  value={filterEnd} 
+                  onChange={(e) => setFilterEnd(e.target.value)} 
+                  className="text-xs font-bold text-[#1C0770] bg-transparent outline-none" 
+                />
+              </div>
+            </div>
+            {onRefresh && (
+              <button 
+                onClick={onRefresh} 
+                className="px-5 py-2.5 bg-[#1C0770] text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all active:scale-95 w-full sm:w-auto flex items-center justify-center gap-2"
+              >
+                <span>🔄</span> Refresh
+              </button>
+            )}
+            {(filterStart || filterEnd) && (
+              <button onClick={handleResetFilter} className="px-4 py-2 bg-slate-100 text-slate-500 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-slate-200 h-[34px]">Reset</button>
+            )}
+          </div>
         </div>
       </div>
 
+      <div className="flex bg-slate-100 p-1.5 rounded-2xl w-fit">
+        <button 
+          onClick={() => setMainTab('weekly')}
+          className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${mainTab === 'weekly' ? 'bg-white text-[#1C0770] shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+        >
+          Mingguan
+        </button>
+        <button 
+          onClick={() => setMainTab('daily')}
+          className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${mainTab === 'daily' ? 'bg-white text-[#1C0770] shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+        >
+          Harian
+        </button>
+      </div>
+
       <div className="grid grid-cols-1 gap-4">
-        {filteredHistory.length === 0 ? (
-          <div className="bg-white p-20 rounded-[40px] border border-dashed border-slate-200 text-center flex flex-col items-center">
-            <span className="text-5xl block mb-4 opacity-20">📁</span>
-            <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Belum ada riwayat ditemukan atau database sedang memuat</p>
-          </div>
-        ) : (
-          filteredHistory.map(item => (
-            <div key={item.id} className="bg-white p-6 md:p-8 rounded-[40px] border border-slate-100 shadow-sm hover:shadow-md transition-all group">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                 <div className="flex items-center gap-6">
-                   <div className="w-16 h-16 bg-[#1C0770]/5 rounded-3xl flex flex-col items-center justify-center shrink-0">
-                      <span className="text-[10px] font-black text-slate-400 uppercase leading-none mb-1">Date</span>
-                      <span className="text-2xl font-black text-[#1C0770] font-mono leading-none">
-                        {parseSafeDate(item.startDate).getDate()}
-                      </span>
-                   </div>
-                   <div>
-                      <h4 className="font-bold text-slate-800 text-lg tracking-tight">
-                        Produksi: {parseSafeDate(item.startDate).toLocaleDateString('id-ID', {day: 'numeric', month: 'long', year: 'numeric'})}
-                      </h4>
-                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">ID: {item.id}</p>
-                   </div>
-                </div>
-                <div className="flex items-center gap-8 w-full md:w-auto justify-between md:justify-end">
-                   <div className="text-right">
-                      <div className="text-2xl font-black text-slate-900 leading-none">{item.totalBatches}</div>
-                      <div className="text-[10px] font-black text-slate-300 uppercase mt-1">Total Batches</div>
-                   </div>
-                   <button onClick={() => { setSelectedSchedule(item); setDetailTab('batch'); }} className="px-6 py-3 bg-slate-50 text-slate-500 rounded-xl text-[10px] font-black uppercase tracking-widest group-hover:bg-[#1C0770] group-hover:text-white transition-all shadow-sm">View Detail</button>
+        {mainTab === 'weekly' ? (
+          filteredHistory.length === 0 ? (
+            <div className="bg-white p-20 rounded-[40px] border border-dashed border-slate-200 text-center flex flex-col items-center">
+              <span className="text-5xl block mb-4 opacity-20">📁</span>
+              <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Belum ada riwayat ditemukan atau database sedang memuat</p>
+            </div>
+          ) : (
+            filteredHistory.map(item => (
+              <div key={item.id} className="bg-white p-6 md:p-8 rounded-[40px] border border-slate-100 shadow-sm hover:shadow-md transition-all group">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                   <div className="flex items-center gap-6">
+                     <div className="w-16 h-16 bg-[#1C0770]/5 rounded-3xl flex flex-col items-center justify-center shrink-0">
+                        <span className="text-[10px] font-black text-slate-400 uppercase leading-none mb-1">Date</span>
+                        <span className="text-2xl font-black text-[#1C0770] font-mono leading-none">
+                          {parseSafeDate(item.startDate).getDate()}
+                        </span>
+                     </div>
+                     <div>
+                        <h4 className="font-bold text-slate-800 text-lg tracking-tight">
+                          Produksi: {parseSafeDate(item.startDate).toLocaleDateString('id-ID', {day: 'numeric', month: 'long', year: 'numeric'})}
+                        </h4>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">ID: {item.id}</p>
+                     </div>
+                  </div>
+                  <div className="flex items-center gap-8 w-full md:w-auto justify-between md:justify-end">
+                     <div className="text-right">
+                        <div className="text-2xl font-black text-slate-900 leading-none">{item.totalBatches}</div>
+                        <div className="text-[10px] font-black text-slate-300 uppercase mt-1">Total Batches</div>
+                     </div>
+                     <button onClick={() => { setSelectedSchedule(item); setDetailTab('batch'); }} className="px-6 py-3 bg-slate-50 text-slate-500 rounded-xl text-[10px] font-black uppercase tracking-widest group-hover:bg-[#1C0770] group-hover:text-white transition-all shadow-sm">View Detail</button>
+                  </div>
                 </div>
               </div>
+            ))
+          )
+        ) : (
+          filteredDailyHistory.length === 0 ? (
+            <div className="bg-white p-20 rounded-[40px] border border-dashed border-slate-200 text-center flex flex-col items-center">
+              <span className="text-5xl block mb-4 opacity-20">📅</span>
+              <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Belum ada riwayat harian ditemukan</p>
             </div>
-          ))
+          ) : (
+            filteredDailyHistory.map((day, idx) => (
+              <div key={`${day.parentScheduleId}-${idx}`} className="bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden">
+                <div className="px-10 py-6 border-b border-slate-50 bg-slate-50/20 flex justify-between items-center">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 bg-[#1C0770] text-white rounded-xl flex items-center justify-center font-black text-xs">
+                      {idx + 1}
+                    </div>
+                    <div>
+                      <h4 className="font-black text-slate-800 text-sm uppercase tracking-tight">{day.dayName}, {day.date}</h4>
+                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Dari Jadwal Mingguan: {parseSafeDate(day.parentStartDate).toLocaleDateString('id-ID', {day: 'numeric', month: 'long', year: 'numeric'})}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-8">
+                    <div className="text-right">
+                      <div className="text-sm font-black text-[#1C0770]">{Object.keys(day.perSku).length}</div>
+                      <div className="text-[8px] font-bold text-slate-300 uppercase">SKUs</div>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-8">
+                  <h5 className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-4">Rincian Produksi Per SKU</h5>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {Object.entries(day.perSku).map(([skuId, data]) => {
+                      const sku = finishGoods.find(s => s.id === skuId);
+                      return (
+                        <div key={skuId} className="border border-slate-100 rounded-2xl p-4 flex flex-col justify-between">
+                          <div className="flex justify-between items-start mb-3">
+                            <span className="text-xs font-bold text-slate-800">{sku?.name || skuId}</span>
+                            <span className="text-[9px] font-bold text-indigo-400 bg-indigo-50 px-2 py-0.5 rounded-lg">{skuId}</span>
+                          </div>
+                          <div className="flex justify-between items-center mt-2 pt-2 border-t border-slate-50">
+                            <div className="text-center">
+                              <div className="text-sm font-black text-[#1C0770]">{data.batches}</div>
+                              <div className="text-[8px] font-bold text-slate-400 uppercase">Batches</div>
+                            </div>
+                            <div className="text-center">
+                              <div className="text-sm font-black text-emerald-600">{data.packs.toLocaleString()}</div>
+                              <div className="text-[8px] font-bold text-slate-400 uppercase">Packs</div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            ))
+          )
         )}
       </div>
 

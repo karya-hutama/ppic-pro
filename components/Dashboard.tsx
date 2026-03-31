@@ -239,6 +239,7 @@ const Dashboard: React.FC<DashboardProps> = ({
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
           <h1 className="text-3xl font-black text-slate-900 tracking-tight leading-tight uppercase">Dashboard Command Center</h1>
+          <p className="text-slate-500 mt-1 text-sm font-medium italic">Monitoring operasional bakso profesional</p>
         </div>
         
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-white p-3 rounded-[28px] border border-slate-100 shadow-sm w-full md:w-auto overflow-x-auto">
