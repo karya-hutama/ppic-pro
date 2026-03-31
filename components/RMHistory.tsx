@@ -79,22 +79,41 @@ const RMHistory: React.FC<RMHistoryProps> = ({ history = [], rawMaterials = [], 
   const [selectedReq, setSelectedReq] = useState<SavedRMRequirement | null>(null);
 
   const getBatchInfo = (req: SavedRMRequirement) => {
+    // Priority 1: Use stored values if they exist
     if (req.totalBatches !== undefined && req.totalBatches > 0) {
-      return { total: req.totalBatches, perSku: req.perSkuBatches || {} };
+      return {
+        total: req.totalBatches,
+        perSku: req.perSkuBatches || {}
+      };
     }
+
+    // Priority 2: Fallback to productionHistory matching by date
+    const reqDateStr = formatDateToISO(req.startDate);
+    const matchingSchedule = productionHistory.find(s => formatDateToISO(s.startDate) === reqDateStr);
     
-    // Fallback: Find matching schedule by startDate
-    const matchingSchedule = productionHistory.find(s => formatDateToISO(s.startDate) === formatDateToISO(req.startDate));
     if (matchingSchedule) {
+      let data: Record<string, number[]> = {};
+      try {
+        data = typeof matchingSchedule.data === 'string' ? JSON.parse(matchingSchedule.data) : matchingSchedule.data;
+      } catch (e) {
+        console.error("Error parsing schedule data for batch count", e);
+        data = (matchingSchedule.data as any) || {};
+      }
+
+      let total = 0;
       const perSku: Record<string, number> = {};
-      Object.entries(matchingSchedule.data || {}).forEach(([skuId, batches]) => {
+
+      Object.entries(data).forEach(([skuId, batches]) => {
         if (Array.isArray(batches)) {
-          perSku[skuId] = batches.reduce((a, b) => a + (Number(b) || 0), 0);
+          const skuTotal = batches.reduce((sum, b) => sum + (Number(b) || 0), 0);
+          total += skuTotal;
+          perSku[skuId] = skuTotal;
         }
       });
-      return { total: matchingSchedule.totalBatches || 0, perSku };
+
+      return { total: total || matchingSchedule.totalBatches || 0, perSku };
     }
-    
+
     return { total: 0, perSku: {} };
   };
 

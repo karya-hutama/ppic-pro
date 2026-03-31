@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-  BarChart, Bar, Cell
+  BarChart, Bar, Cell, LabelList
 } from 'recharts';
 import { RawMaterial, FinishGood, SalesData, SavedSchedule, RequestOrder } from '../types';
 
@@ -33,11 +33,19 @@ const Dashboard: React.FC<DashboardProps> = ({
   // Helper untuk normalisasi tanggal agar hanya YYYY-MM-DD (Timezone Safe)
   const normalizeDate = (d: any) => {
     if (!d) return "";
-    let dateObj: Date;
     
-    if (d instanceof Date) {
-      dateObj = d;
-    } else if (typeof d === 'string') {
+    if (typeof d === 'string') {
+      // Handle ISO strings from GAS
+      if (d.includes('T')) {
+        const dateObj = new Date(d);
+        if (!isNaN(dateObj.getTime())) {
+          const year = dateObj.getFullYear();
+          const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+          const day = String(dateObj.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        }
+      }
+      
       const datePart = d.split(/[ T]/)[0];
       const parts = datePart.split(/[-/]/);
       if (parts.length === 3) {
@@ -53,11 +61,9 @@ const Dashboard: React.FC<DashboardProps> = ({
         }
         return `${y}-${String(m).padStart(2, '0')}-${String(d_val).padStart(2, '0')}`;
       }
-      dateObj = new Date(d);
-    } else {
-      dateObj = new Date(d);
     }
-
+    
+    const dateObj = new Date(d);
     if (isNaN(dateObj.getTime())) return "";
     const year = dateObj.getFullYear();
     const month = String(dateObj.getMonth() + 1).padStart(2, '0');
@@ -163,7 +169,10 @@ const Dashboard: React.FC<DashboardProps> = ({
         try { scheduleMap = JSON.parse(scheduleMap); } catch(e) { scheduleMap = {}; }
       }
 
-      const schStart = new Date(sch.startDate);
+      // Use a more robust date parsing for the schedule start date
+      const schStartStr = normalizeDate(sch.startDate);
+      const [sy, sm, sd] = schStartStr.split('-').map(Number);
+      const schStart = new Date(sy, sm - 1, sd);
 
       Object.entries(scheduleMap).forEach(([skuId, batches]) => {
         if (Array.isArray(batches)) {
@@ -204,7 +213,9 @@ const Dashboard: React.FC<DashboardProps> = ({
         try { scheduleMap = JSON.parse(scheduleMap); } catch(e) { scheduleMap = {}; }
       }
 
-      const schStart = new Date(sch.startDate);
+      const schStartStr = normalizeDate(sch.startDate);
+      const [sy, sm, sd] = schStartStr.split('-').map(Number);
+      const schStart = new Date(sy, sm - 1, sd);
 
       Object.values(scheduleMap).forEach((batches: any) => {
         if (Array.isArray(batches)) {
@@ -365,9 +376,14 @@ const Dashboard: React.FC<DashboardProps> = ({
                     <Tooltip 
                       contentStyle={{borderRadius: '24px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)'}} 
                       labelStyle={{fontWeight: 900, color: '#1C0770', fontSize: '12px'}}
+                      formatter={(value: any) => [Number(value).toLocaleString('id-ID'), '']}
                     />
-                    <Area type="monotone" dataKey="rmIn" stroke="#1C0770" strokeWidth={4} fillOpacity={1} fill="url(#colorRM)" animationDuration={1500} />
-                    <Area type="monotone" dataKey="fgOut" stroke="#10B981" strokeWidth={4} fillOpacity={1} fill="url(#colorFG)" animationDuration={1500} />
+                    <Area type="monotone" dataKey="rmIn" stroke="#1C0770" strokeWidth={4} fillOpacity={1} fill="url(#colorRM)" animationDuration={1500}>
+                       <LabelList dataKey="rmIn" position="top" offset={10} formatter={(v: any) => v > 0 ? Number(v).toLocaleString('id-ID') : ''} style={{ fontSize: 9, fontWeight: 900, fill: '#1C0770' }} />
+                    </Area>
+                    <Area type="monotone" dataKey="fgOut" stroke="#10B981" strokeWidth={4} fillOpacity={1} fill="url(#colorFG)" animationDuration={1500}>
+                       <LabelList dataKey="fgOut" position="top" offset={10} formatter={(v: any) => v > 0 ? Number(v).toLocaleString('id-ID') : ''} style={{ fontSize: 9, fontWeight: 900, fill: '#10B981' }} />
+                    </Area>
                  </AreaChart>
               </ResponsiveContainer>
            </div>

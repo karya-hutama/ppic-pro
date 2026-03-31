@@ -206,8 +206,10 @@ const ScheduledProduction: React.FC<ScheduledProductionProps> = ({
             const amountNeeded = totalBatches * Number(ing.quantity || 0);
             const material = rawMaterials.find(m => m.id === ing.materialId);
             
-            if (material?.isProcessed && material.sourceMaterialId) {
+            if (material?.isProcessed && material.sourceMaterialId && material.sourceMaterialId !== material.id) {
               const yieldFactor = material.processingYield || 1;
+              // Yield calculation: To get X amount of processed material, we need X / yieldFactor of source material
+              // Example: If 1kg source makes 2kg processed (yield=2), then to get 2060 processed, we need 2060/2 = 1030 source.
               const convertedSourceAmount = amountNeeded / yieldFactor;
               global[material.sourceMaterialId] = (global[material.sourceMaterialId] || 0) + convertedSourceAmount;
               perSku[fg.id][ing.materialId] = amountNeeded;
