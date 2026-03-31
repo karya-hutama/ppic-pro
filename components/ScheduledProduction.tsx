@@ -82,7 +82,7 @@ interface ScheduledProductionProps {
   peakDayRecommendations?: Record<string, number>;
   transferredAnalysis?: any[] | null;
   onSave?: (schedule: Record<string, number[]>, startDate: string, targets: Record<string, number>, existingId?: string) => void;
-  onSaveRMHistory?: (global: Record<string, number>, perSku: Record<string, Record<string, number>>, startDate: string) => void;
+  onSaveRMHistory?: (global: Record<string, number>, perSku: Record<string, Record<string, number>>, startDate: string, totalBatches?: number, perSkuBatches?: Record<string, number>) => void;
   onSyncToROP?: (requirements: any[]) => void;
 }
 
@@ -191,29 +191,36 @@ const ScheduledProduction: React.FC<ScheduledProductionProps> = ({
   const rmNeeds = useMemo(() => {
     const global: Record<string, number> = {};
     const perSku: Record<string, Record<string, number>> = {};
+    const perSkuBatches: Record<string, number> = {};
+    let totalBatchesGlobal = 0;
 
     activeFinishGoods.forEach(fg => {
       const totalBatches = (schedule[fg.id] || []).reduce((a, b) => a + (Number(b) || 0), 0);
-      if (totalBatches > 0 && fg.ingredients) {
-        perSku[fg.id] = {};
-        (fg.ingredients || []).forEach(ing => {
-          const amountNeeded = totalBatches * Number(ing.quantity || 0);
-          const material = rawMaterials.find(m => m.id === ing.materialId);
-          
-          if (material?.isProcessed && material.sourceMaterialId) {
-            const yieldFactor = material.processingYield || 1;
-            const convertedSourceAmount = amountNeeded / yieldFactor;
-            global[material.sourceMaterialId] = (global[material.sourceMaterialId] || 0) + convertedSourceAmount;
-            perSku[fg.id][ing.materialId] = amountNeeded;
-          } else {
-            global[ing.materialId] = (global[ing.materialId] || 0) + amountNeeded;
-            perSku[fg.id][ing.materialId] = amountNeeded;
-          }
-        });
+      if (totalBatches > 0) {
+        perSkuBatches[fg.id] = totalBatches;
+        totalBatchesGlobal += totalBatches;
+        
+        if (fg.ingredients) {
+          perSku[fg.id] = {};
+          (fg.ingredients || []).forEach(ing => {
+            const amountNeeded = totalBatches * Number(ing.quantity || 0);
+            const material = rawMaterials.find(m => m.id === ing.materialId);
+            
+            if (material?.isProcessed && material.sourceMaterialId) {
+              const yieldFactor = material.processingYield || 1;
+              const convertedSourceAmount = amountNeeded / yieldFactor;
+              global[material.sourceMaterialId] = (global[material.sourceMaterialId] || 0) + convertedSourceAmount;
+              perSku[fg.id][ing.materialId] = amountNeeded;
+            } else {
+              global[ing.materialId] = (global[ing.materialId] || 0) + amountNeeded;
+              perSku[fg.id][ing.materialId] = amountNeeded;
+            }
+          });
+        }
       }
     });
 
-    return { global, perSku };
+    return { global, perSku, totalBatchesGlobal, perSkuBatches };
   }, [schedule, activeFinishGoods, rawMaterials]);
 
   const handleSyncToROP = () => {
@@ -474,7 +481,7 @@ const ScheduledProduction: React.FC<ScheduledProductionProps> = ({
                   <span>📥</span> Download Excel
                 </button>
                 <button 
-                  onClick={() => onSaveRMHistory?.(rmNeeds.global, rmNeeds.perSku, startDate)}
+                  onClick={() => onSaveRMHistory?.(rmNeeds.global, rmNeeds.perSku, startDate, rmNeeds.totalBatchesGlobal, rmNeeds.perSkuBatches)}
                   className="px-6 py-4 bg-slate-100 text-slate-500 rounded-2xl font-black uppercase text-[10px] hover:bg-slate-200 transition-all"
                 >
                   💾 Archive Perhitungan

@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import * as XLSX from 'xlsx';
-import { SavedRMRequirement, RawMaterial, FinishGood } from '../types';
+import { SavedRMRequirement, RawMaterial, FinishGood, SavedSchedule } from '../types';
 
 const parseSafeDate = (dateInput: any): Date => {
   if (!dateInput) return new Date();
@@ -72,20 +72,43 @@ interface RMHistoryProps {
   history: SavedRMRequirement[];
   rawMaterials: RawMaterial[];
   finishGoods: FinishGood[];
+  productionHistory: SavedSchedule[];
 }
 
-const RMHistory: React.FC<RMHistoryProps> = ({ history = [], rawMaterials = [], finishGoods = [] }) => {
+const RMHistory: React.FC<RMHistoryProps> = ({ history = [], rawMaterials = [], finishGoods = [], productionHistory = [] }) => {
   const [selectedReq, setSelectedReq] = useState<SavedRMRequirement | null>(null);
+
+  const getBatchInfo = (req: SavedRMRequirement) => {
+    if (req.totalBatches !== undefined && req.totalBatches > 0) {
+      return { total: req.totalBatches, perSku: req.perSkuBatches || {} };
+    }
+    
+    // Fallback: Find matching schedule by startDate
+    const matchingSchedule = productionHistory.find(s => formatDateToISO(s.startDate) === formatDateToISO(req.startDate));
+    if (matchingSchedule) {
+      const perSku: Record<string, number> = {};
+      Object.entries(matchingSchedule.data || {}).forEach(([skuId, batches]) => {
+        if (Array.isArray(batches)) {
+          perSku[skuId] = batches.reduce((a, b) => a + (Number(b) || 0), 0);
+        }
+      });
+      return { total: matchingSchedule.totalBatches || 0, perSku };
+    }
+    
+    return { total: 0, perSku: {} };
+  };
 
   const handleDownloadExcel = () => {
     const dataToExport: any[] = [];
 
     history.forEach(item => {
+      const batchInfo = getBatchInfo(item);
       Object.entries(item.globalData || {}).forEach(([rmId, amount]) => {
         const rm = rawMaterials.find(m => m.id === rmId);
         dataToExport.push({
           'No Request Order': item.id,
           'Tanggal Request Order': new Date(item.createdAt).toLocaleDateString('id-ID'),
+          'Total Batches': batchInfo.total,
           'Raw Materials': rm?.name || rmId,
           'Qty': amount
         });
@@ -102,11 +125,13 @@ const RMHistory: React.FC<RMHistoryProps> = ({ history = [], rawMaterials = [], 
     const dataToExport: any[] = [];
     
     // Global Summary
+    const batchInfo = getBatchInfo(req);
     Object.entries(req.globalData || {}).forEach(([rmId, amount]) => {
       const rm = rawMaterials.find(m => m.id === rmId);
       dataToExport.push({
         'Category': 'GLOBAL SUMMARY',
         'Product/SKU': '-',
+        'Total Batches': batchInfo.total,
         'Material Name': rm?.name || rmId,
         'Quantity': amount,
         'Unit': rm?.usageUnit || '-'
@@ -116,11 +141,13 @@ const RMHistory: React.FC<RMHistoryProps> = ({ history = [], rawMaterials = [], 
     // Per SKU Breakdown
     Object.entries(req.perSkuData || {}).forEach(([skuId, needs]) => {
       const sku = finishGoods.find(s => s.id === skuId);
+      const skuBatches = batchInfo.perSku[skuId] || 0;
       Object.entries(needs || {}).forEach(([rmId, amount]) => {
         const rm = rawMaterials.find(m => m.id === rmId);
         dataToExport.push({
           'Category': 'PER SKU BREAKDOWN',
           'Product/SKU': sku?.name || skuId,
+          'Batches': skuBatches,
           'Material Name': rm?.name || rmId,
           'Quantity': amount,
           'Unit': rm?.usageUnit || '-'
@@ -175,6 +202,10 @@ const RMHistory: React.FC<RMHistoryProps> = ({ history = [], rawMaterials = [], 
                 </div>
                 <div className="flex items-center gap-8 w-full md:w-auto justify-between md:justify-end">
                    <div className="text-right">
+                      <div className="text-2xl font-black text-slate-900 leading-none">{getBatchInfo(item).total}</div>
+                      <div className="text-[10px] font-black text-slate-300 uppercase mt-1">Total Batches</div>
+                   </div>
+                   <div className="text-right">
                       <div className="text-2xl font-black text-slate-900 leading-none">{Object.keys(item.globalData || {}).length}</div>
                       <div className="text-[10px] font-black text-slate-300 uppercase mt-1">Total Material</div>
                    </div>
@@ -214,7 +245,7 @@ const RMHistory: React.FC<RMHistoryProps> = ({ history = [], rawMaterials = [], 
                 <section>
                    <h4 className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em] mb-6 flex items-center gap-3">
                       <div className="h-px bg-slate-100 flex-1"></div>
-                      GLOBAL SUMMARY
+                      GLOBAL SUMMARY ({getBatchInfo(selectedReq).total} BATCHES)
                       <div className="h-px bg-slate-100 flex-1"></div>
                    </h4>
                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
@@ -243,8 +274,11 @@ const RMHistory: React.FC<RMHistoryProps> = ({ history = [], rawMaterials = [], 
                          return (
                             <div key={skuId} className="bg-white rounded-[32px] p-8 border border-slate-100 shadow-sm">
                                <div className="flex justify-between items-center mb-6 pb-4 border-b border-slate-100">
-                                  <div className="font-black text-slate-800 text-xs tracking-tight">{sku?.name}</div>
-                                  <div className="text-[9px] font-black text-indigo-400 uppercase">{skuId}</div>
+                                  <div>
+                                     <div className="font-black text-slate-800 text-xs tracking-tight">{sku?.name}</div>
+                                     <div className="text-[9px] font-bold text-indigo-400 uppercase mt-0.5">{getBatchInfo(selectedReq).perSku[skuId] || 0} Batches</div>
+                                  </div>
+                                  <div className="text-[9px] font-black text-slate-300 uppercase">{skuId}</div>
                                </div>
                                <div className="space-y-4">
                                   {Object.entries(needs || {}).map(([rmId, amount]) => {

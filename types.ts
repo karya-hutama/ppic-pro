@@ -52,6 +52,8 @@ export interface SavedRMRequirement {
   createdAt: string;
   globalData: Record<string, number>;
   perSkuData: Record<string, Record<string, number>>;
+  totalBatches?: number;
+  perSkuBatches?: Record<string, number>;
 }
 
 export interface DeliveryBatch {

@@ -149,13 +149,15 @@ const App: React.FC = () => {
     setActiveTab('history'); // Switch to history to see the result
   };
 
-  const handleSaveRMHistory = async (global: Record<string, number>, perSku: Record<string, Record<string, number>>, startDate: string) => {
+  const handleSaveRMHistory = async (global: Record<string, number>, perSku: Record<string, Record<string, number>>, startDate: string, totalBatches?: number, perSkuBatches?: Record<string, number>) => {
     const newEntry: SavedRMRequirement = {
       id: `RMH-${Date.now()}`,
       startDate,
       createdAt: new Date().toISOString(),
       globalData: global,
-      perSkuData: perSku
+      perSkuData: perSku,
+      totalBatches,
+      perSkuBatches
     };
     setRmHistory([newEntry, ...rmHistory]); // Optimistic
     postData('saveRMRequirement', newEntry);
@@ -251,7 +253,7 @@ const App: React.FC = () => {
           onRefresh={() => fetchData(false)}
         />;
       case 'rmHistory':
-        return <RMHistory history={rmHistory} rawMaterials={rawMaterials} finishGoods={finishGoods} />;
+        return <RMHistory history={rmHistory} rawMaterials={rawMaterials} finishGoods={finishGoods} productionHistory={productionHistory} />;
       case 'purchasing':
         return <Purchasing history={requestOrders} onUpdateRO={(ro) => {
           setRequestOrders(requestOrders.map(r => r.id === ro.id ? ro : r)); // Optimistic
