@@ -3,7 +3,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { SalesData, FinishGood } from '../types';
 import * as XLSX from 'xlsx';
 import { 
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LabelList
 } from 'recharts';
 
 interface SalesAnalysisProps {
@@ -187,6 +187,11 @@ const SalesAnalysis: React.FC<SalesAnalysisProps> = ({ salesData, finishGoods, o
     const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
     const weekNo = Math.ceil((((date.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
     return `${date.getUTCFullYear()}-W${String(weekNo).padStart(2, '0')}`;
+  };
+
+  const formatNumber = (num: any) => {
+    if (num === undefined || num === null) return '';
+    return new Intl.NumberFormat('id-ID').format(Number(num));
   };
 
   const chartData = useMemo(() => {
@@ -385,15 +390,27 @@ const SalesAnalysis: React.FC<SalesAnalysisProps> = ({ salesData, finishGoods, o
                     tick={{fontSize: 10, fill: '#94A3B8', fontWeight: 700}} 
                     tickFormatter={(val) => activeAnalysisTab === 'daily' ? val.split('-').slice(1).join('/') : val}
                   />
-                  <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#94A3B8', fontWeight: 700}} />
+                  <YAxis 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{fontSize: 10, fill: '#94A3B8', fontWeight: 700}} 
+                    tickFormatter={formatNumber}
+                  />
                   <Tooltip 
                     contentStyle={{borderRadius: '24px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)'}} 
                     labelStyle={{fontWeight: 900, color: '#1C0770', fontSize: '12px'}}
+                    formatter={(value: any) => [formatNumber(value), 'Qty']}
                   />
                   <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: '10px', fontWeight: 900, textTransform: 'uppercase' }} />
-                  <Line type="monotone" dataKey="global" name="Global Qty" stroke="#1C0770" strokeWidth={4} dot={activeAnalysisTab !== 'daily'} activeDot={{ r: 6 }} />
+                  <Line type="monotone" dataKey="global" name="Global Qty" stroke="#1C0770" strokeWidth={4} dot={activeAnalysisTab !== 'daily'} activeDot={{ r: 6 }}>
+                    {activeAnalysisTab !== 'daily' && (
+                      <LabelList dataKey="global" position="top" offset={10} formatter={formatNumber} style={{ fontSize: '10px', fontWeight: 900, fill: '#1C0770' }} />
+                    )}
+                  </Line>
                   {activeAnalysisTab === 'monthly' && (
-                    <Line type="monotone" dataKey="compareGlobal" name="Global (Tahun Lalu)" stroke="#F59E0B" strokeWidth={2} strokeDasharray="5 5" dot={false} activeDot={{ r: 5 }} />
+                    <Line type="monotone" dataKey="compareGlobal" name="Global (Tahun Lalu)" stroke="#F59E0B" strokeWidth={2} strokeDasharray="5 5" dot={false} activeDot={{ r: 5 }}>
+                      <LabelList dataKey="compareGlobal" position="bottom" offset={10} formatter={formatNumber} style={{ fontSize: '10px', fontWeight: 900, fill: '#F59E0B' }} />
+                    </Line>
                   )}
                 </LineChart>
               </ResponsiveContainer>
@@ -430,15 +447,27 @@ const SalesAnalysis: React.FC<SalesAnalysisProps> = ({ salesData, finishGoods, o
                     tick={{fontSize: 10, fill: '#94A3B8', fontWeight: 700}} 
                     tickFormatter={(val) => activeAnalysisTab === 'daily' ? val.split('-').slice(1).join('/') : val}
                   />
-                  <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#94A3B8', fontWeight: 700}} />
+                  <YAxis 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{fontSize: 10, fill: '#94A3B8', fontWeight: 700}} 
+                    tickFormatter={formatNumber}
+                  />
                   <Tooltip 
                     contentStyle={{borderRadius: '24px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)'}} 
                     labelStyle={{fontWeight: 900, color: '#1C0770', fontSize: '12px'}}
+                    formatter={(value: any) => [formatNumber(value), 'Qty']}
                   />
                   <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: '10px', fontWeight: 900, textTransform: 'uppercase' }} />
-                  <Line type="monotone" dataKey="perItem" name="Item Qty" stroke="#10B981" strokeWidth={4} dot={activeAnalysisTab !== 'daily'} activeDot={{ r: 6 }} />
+                  <Line type="monotone" dataKey="perItem" name="Item Qty" stroke="#10B981" strokeWidth={4} dot={activeAnalysisTab !== 'daily'} activeDot={{ r: 6 }}>
+                    {activeAnalysisTab !== 'daily' && (
+                      <LabelList dataKey="perItem" position="top" offset={10} formatter={formatNumber} style={{ fontSize: '10px', fontWeight: 900, fill: '#10B981' }} />
+                    )}
+                  </Line>
                   {activeAnalysisTab === 'monthly' && (
-                    <Line type="monotone" dataKey="compareItem" name="Item (Tahun Lalu)" stroke="#F59E0B" strokeWidth={2} strokeDasharray="5 5" dot={false} activeDot={{ r: 5 }} />
+                    <Line type="monotone" dataKey="compareItem" name="Item (Tahun Lalu)" stroke="#F59E0B" strokeWidth={2} strokeDasharray="5 5" dot={false} activeDot={{ r: 5 }}>
+                      <LabelList dataKey="compareItem" position="bottom" offset={10} formatter={formatNumber} style={{ fontSize: '10px', fontWeight: 900, fill: '#F59E0B' }} />
+                    </Line>
                   )}
                 </LineChart>
               </ResponsiveContainer>
