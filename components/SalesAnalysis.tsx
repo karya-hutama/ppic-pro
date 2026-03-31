@@ -33,7 +33,7 @@ const SalesAnalysis: React.FC<SalesAnalysisProps> = ({ salesData, finishGoods, o
   });
   
   const [showNotification, setShowNotification] = useState<string | null>(null);
-  const [activeAnalysisTab, setActiveAnalysisTab] = useState<'weekly' | 'monthly' | 'yearly'>('weekly');
+  const [activeAnalysisTab, setActiveAnalysisTab] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('daily');
   const [selectedSkuId, setSelectedSkuId] = useState<string>(finishGoods[0]?.id || '');
   
   const [startMonth, setStartMonth] = useState(() => {
@@ -218,7 +218,9 @@ const SalesAnalysis: React.FC<SalesAnalysisProps> = ({ salesData, finishGoods, o
       const dateObj = new Date(s.date);
       let key = '';
       
-      if (activeAnalysisTab === 'weekly') {
+      if (activeAnalysisTab === 'daily') {
+        key = cleanDate(s.date);
+      } else if (activeAnalysisTab === 'weekly') {
         key = getWeekNumber(dateObj);
       } else if (activeAnalysisTab === 'monthly') {
         key = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
@@ -321,7 +323,7 @@ const SalesAnalysis: React.FC<SalesAnalysisProps> = ({ salesData, finishGoods, o
       <div className="flex flex-col space-y-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-2 bg-white p-2 rounded-[24px] border border-slate-100 shadow-sm w-fit">
-            {(['weekly', 'monthly', 'yearly'] as const).map((tab) => (
+            {(['daily', 'weekly', 'monthly', 'yearly'] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveAnalysisTab(tab)}
@@ -331,7 +333,7 @@ const SalesAnalysis: React.FC<SalesAnalysisProps> = ({ salesData, finishGoods, o
                     : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
                 }`}
               >
-                {tab === 'weekly' ? 'Mingguan' : tab === 'monthly' ? 'Bulanan' : 'Tahunan'}
+                {tab === 'daily' ? 'Harian' : tab === 'weekly' ? 'Mingguan' : tab === 'monthly' ? 'Bulanan' : 'Tahunan'}
               </button>
             ))}
           </div>
@@ -376,16 +378,22 @@ const SalesAnalysis: React.FC<SalesAnalysisProps> = ({ salesData, finishGoods, o
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData as any[]}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#94A3B8', fontWeight: 700}} />
+                  <XAxis 
+                    dataKey="name" 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{fontSize: 10, fill: '#94A3B8', fontWeight: 700}} 
+                    tickFormatter={(val) => activeAnalysisTab === 'daily' ? val.split('-').slice(1).join('/') : val}
+                  />
                   <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#94A3B8', fontWeight: 700}} />
                   <Tooltip 
                     contentStyle={{borderRadius: '24px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)'}} 
                     labelStyle={{fontWeight: 900, color: '#1C0770', fontSize: '12px'}}
                   />
                   <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: '10px', fontWeight: 900, textTransform: 'uppercase' }} />
-                  <Line type="monotone" dataKey="global" name="Global Qty" stroke="#1C0770" strokeWidth={4} dot={{ r: 4, fill: '#1C0770', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6 }} />
+                  <Line type="monotone" dataKey="global" name="Global Qty" stroke="#1C0770" strokeWidth={4} dot={activeAnalysisTab !== 'daily'} activeDot={{ r: 6 }} />
                   {activeAnalysisTab === 'monthly' && (
-                    <Line type="monotone" dataKey="compareGlobal" name="Global (Tahun Lalu)" stroke="#F59E0B" strokeWidth={2} strokeDasharray="5 5" dot={{ r: 3, fill: '#F59E0B' }} activeDot={{ r: 5 }} />
+                    <Line type="monotone" dataKey="compareGlobal" name="Global (Tahun Lalu)" stroke="#F59E0B" strokeWidth={2} strokeDasharray="5 5" dot={false} activeDot={{ r: 5 }} />
                   )}
                 </LineChart>
               </ResponsiveContainer>
@@ -415,16 +423,22 @@ const SalesAnalysis: React.FC<SalesAnalysisProps> = ({ salesData, finishGoods, o
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData as any[]}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#94A3B8', fontWeight: 700}} />
+                  <XAxis 
+                    dataKey="name" 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{fontSize: 10, fill: '#94A3B8', fontWeight: 700}} 
+                    tickFormatter={(val) => activeAnalysisTab === 'daily' ? val.split('-').slice(1).join('/') : val}
+                  />
                   <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#94A3B8', fontWeight: 700}} />
                   <Tooltip 
                     contentStyle={{borderRadius: '24px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)'}} 
                     labelStyle={{fontWeight: 900, color: '#1C0770', fontSize: '12px'}}
                   />
                   <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: '10px', fontWeight: 900, textTransform: 'uppercase' }} />
-                  <Line type="monotone" dataKey="perItem" name="Item Qty" stroke="#10B981" strokeWidth={4} dot={{ r: 4, fill: '#10B981', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6 }} />
+                  <Line type="monotone" dataKey="perItem" name="Item Qty" stroke="#10B981" strokeWidth={4} dot={activeAnalysisTab !== 'daily'} activeDot={{ r: 6 }} />
                   {activeAnalysisTab === 'monthly' && (
-                    <Line type="monotone" dataKey="compareItem" name="Item (Tahun Lalu)" stroke="#F59E0B" strokeWidth={2} strokeDasharray="5 5" dot={{ r: 3, fill: '#F59E0B' }} activeDot={{ r: 5 }} />
+                    <Line type="monotone" dataKey="compareItem" name="Item (Tahun Lalu)" stroke="#F59E0B" strokeWidth={2} strokeDasharray="5 5" dot={false} activeDot={{ r: 5 }} />
                   )}
                 </LineChart>
               </ResponsiveContainer>
