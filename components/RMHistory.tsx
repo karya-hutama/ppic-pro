@@ -1,6 +1,8 @@
 
 import React, { useState, useMemo, useCallback } from 'react';
 import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { SavedRMRequirement, RawMaterial, FinishGood, SavedSchedule } from '../types';
 
 const parseSafeDate = (dateInput: any): Date => {
@@ -269,6 +271,143 @@ const RMHistory: React.FC<RMHistoryProps> = ({ history = [], rawMaterials = [], 
     XLSX.writeFile(workbook, "RM_History.xlsx");
   };
 
+  const handleDownloadPDF = () => {
+    const doc = new jsPDF({ orientation: 'landscape' });
+    
+    filteredWeeklyHistory.forEach((item, idx) => {
+      if (idx > 0) doc.addPage();
+      
+      const batchInfo = getBatchInfo(item);
+      const dateStr = parseSafeDate(item.startDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+      
+      // Header
+      doc.setFillColor(28, 7, 112); // #1C0770
+      doc.roundedRect(14, 10, 12, 12, 3, 3, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`${idx + 1}`, 20, 18, { align: 'center' });
+      
+      doc.setTextColor(28, 7, 112);
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.text(dateStr.toUpperCase(), 30, 16);
+      
+      doc.setTextColor(150, 150, 150);
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`DARI PRODUKSI: ${parseSafeDate(item.startDate).toLocaleDateString('id-ID', {day: 'numeric', month: 'long', year: 'numeric'}).toUpperCase()}`, 30, 21);
+      
+      doc.setTextColor(28, 7, 112);
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`${Object.keys(item.globalData || {}).length}`, 260, 16, { align: 'center' });
+      doc.text(`${batchInfo.total}`, 280, 16, { align: 'center' });
+      doc.setTextColor(150, 150, 150);
+      doc.setFontSize(7);
+      doc.text('ITEMS', 260, 21, { align: 'center' });
+      doc.text('BATCHES', 280, 21, { align: 'center' });
+
+      // Columns
+      const colWidth = 135;
+      const leftColX = 14;
+      const rightColX = 155;
+      let currentY = 35;
+
+      // Left Column: RINGKASAN MATERIAL
+      doc.setTextColor(180, 180, 180);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.text('RINGKASAN MATERIAL', leftColX, currentY);
+      currentY += 5;
+
+      Object.entries(item.globalData || {}).forEach(([id, amount]) => {
+        const rm = rawMaterials.find(m => m.id === id);
+        if (currentY > 180) {
+          doc.addPage();
+          currentY = 20;
+        }
+        doc.setFillColor(248, 250, 252);
+        doc.roundedRect(leftColX, currentY, colWidth, 10, 2, 2, 'F');
+        
+        doc.setTextColor(50, 50, 50);
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'bold');
+        doc.text(rm?.name || id, leftColX + 5, currentY + 6.5);
+        
+        doc.setTextColor(180, 180, 180);
+        doc.setFontSize(6);
+        doc.setFont('helvetica', 'bold');
+        doc.text(rm?.usageUnit || '', leftColX + colWidth - 5, currentY + 6.5, { align: 'right' });
+        
+        const unitWidth = doc.getTextWidth(rm?.usageUnit || '');
+        doc.setTextColor(28, 7, 112);
+        doc.setFontSize(9);
+        doc.text(`${Math.ceil(amount).toLocaleString()}`, leftColX + colWidth - 6 - unitWidth, currentY + 6.5, { align: 'right' });
+        
+        currentY += 12;
+      });
+
+      // Right Column: RINCIAN PER SKU
+      currentY = 35;
+      doc.setTextColor(180, 180, 180);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.text('RINCIAN PER SKU', rightColX, currentY);
+      currentY += 5;
+
+      Object.entries(item.perSkuData || {}).forEach(([skuId, needs]) => {
+        const sku = finishGoods.find(s => s.id === skuId);
+        const needsEntries = Object.entries(needs || {});
+        const cardHeight = 12 + (Math.ceil(needsEntries.length / 2) * 8);
+        
+        if (currentY + cardHeight > 190) {
+          doc.addPage();
+          currentY = 20;
+        }
+
+        doc.setDrawColor(240, 240, 240);
+        doc.roundedRect(rightColX, currentY, colWidth, cardHeight, 3, 3, 'D');
+        
+        doc.setTextColor(28, 7, 112);
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'bold');
+        doc.text(sku?.name || skuId, rightColX + 5, currentY + 7);
+        
+        doc.setFillColor(240, 245, 255);
+        doc.roundedRect(rightColX + colWidth - 25, currentY + 2.5, 20, 5, 1, 1, 'F');
+        doc.setTextColor(100, 120, 255);
+        doc.setFontSize(6);
+        doc.text(skuId, rightColX + colWidth - 15, currentY + 6, { align: 'center' });
+        
+        let itemY = currentY + 14;
+        let itemX = rightColX + 5;
+        needsEntries.forEach(([rmId, amount], idx) => {
+          const rm = rawMaterials.find(m => m.id === rmId);
+          doc.setTextColor(150, 150, 150);
+          doc.setFontSize(6);
+          doc.setFont('helvetica', 'normal');
+          doc.text(rm?.name || rmId, itemX, itemY);
+          
+          doc.setTextColor(50, 50, 50);
+          doc.setFont('helvetica', 'bold');
+          doc.text(`${Math.ceil(amount).toLocaleString()} ${rm?.usageUnit || ''}`, itemX + (colWidth/2) - 5, itemY, { align: 'right' });
+          
+          if (idx % 2 === 0) {
+            itemX = rightColX + (colWidth / 2) + 5;
+          } else {
+            itemX = rightColX + 5;
+            itemY += 8;
+          }
+        });
+        
+        currentY += cardHeight + 6;
+      });
+    });
+
+    doc.save("Riwayat_RM_Mingguan.pdf");
+  };
+
   const handleDownloadDailyExcel = () => {
     const dataToExport: any[] = [];
 
@@ -311,6 +450,141 @@ const RMHistory: React.FC<RMHistoryProps> = ({ history = [], rawMaterials = [], 
     XLSX.writeFile(workbook, "RM_History_Daily.xlsx");
   };
 
+  const handleDownloadDailyPDF = () => {
+    const doc = new jsPDF({ orientation: 'landscape' });
+    
+    filteredDailyData.forEach((day, idx) => {
+      if (idx > 0) doc.addPage();
+      
+      // Header
+      doc.setFillColor(28, 7, 112); // #1C0770
+      doc.roundedRect(14, 10, 12, 12, 3, 3, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`${idx + 1}`, 20, 18, { align: 'center' });
+      
+      doc.setTextColor(28, 7, 112);
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.text(day.date.toUpperCase(), 30, 16);
+      
+      doc.setTextColor(150, 150, 150);
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'bold');
+      const parentDate = parseSafeDate(day.parentStartDate).toLocaleDateString('id-ID', {day: 'numeric', month: 'long', year: 'numeric'});
+      doc.text(`DARI PRODUKSI: ${parentDate.toUpperCase()}`, 30, 21);
+      
+      doc.setTextColor(28, 7, 112);
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`${Object.keys(day.global).length}`, 260, 16, { align: 'center' });
+      doc.text(`${Object.keys(day.perSku).length}`, 280, 16, { align: 'center' });
+      doc.setTextColor(150, 150, 150);
+      doc.setFontSize(7);
+      doc.text('ITEMS', 260, 21, { align: 'center' });
+      doc.text('SKUS', 280, 21, { align: 'center' });
+
+      // Columns
+      const colWidth = 135;
+      const leftColX = 14;
+      const rightColX = 155;
+      let currentY = 35;
+
+      // Left Column: RINGKASAN MATERIAL
+      doc.setTextColor(180, 180, 180);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.text('RINGKASAN MATERIAL', leftColX, currentY);
+      currentY += 5;
+
+      Object.entries(day.global).forEach(([id, amount]) => {
+        const rm = rawMaterials.find(m => m.id === id);
+        if (currentY > 180) {
+          doc.addPage();
+          currentY = 20;
+        }
+        doc.setFillColor(248, 250, 252);
+        doc.roundedRect(leftColX, currentY, colWidth, 10, 2, 2, 'F');
+        
+        doc.setTextColor(50, 50, 50);
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'bold');
+        doc.text(rm?.name || id, leftColX + 5, currentY + 6.5);
+        
+        doc.setTextColor(180, 180, 180);
+        doc.setFontSize(6);
+        doc.setFont('helvetica', 'bold');
+        doc.text(rm?.usageUnit || '', leftColX + colWidth - 5, currentY + 6.5, { align: 'right' });
+        
+        const unitWidth = doc.getTextWidth(rm?.usageUnit || '');
+        doc.setTextColor(28, 7, 112);
+        doc.setFontSize(9);
+        doc.text(`${Math.ceil(amount as number).toLocaleString()}`, leftColX + colWidth - 6 - unitWidth, currentY + 6.5, { align: 'right' });
+        
+        currentY += 12;
+      });
+
+      // Right Column: RINCIAN PER SKU
+      currentY = 35;
+      doc.setTextColor(180, 180, 180);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.text('RINCIAN PER SKU', rightColX, currentY);
+      currentY += 5;
+
+      Object.entries(day.perSku).forEach(([skuId, needs]) => {
+        const sku = finishGoods.find(s => s.id === skuId);
+        const needsEntries = Object.entries(needs as object);
+        const cardHeight = 12 + (Math.ceil(needsEntries.length / 2) * 8);
+        
+        if (currentY + cardHeight > 190) {
+          doc.addPage();
+          currentY = 20;
+        }
+
+        doc.setDrawColor(240, 240, 240);
+        doc.roundedRect(rightColX, currentY, colWidth, cardHeight, 3, 3, 'D');
+        
+        doc.setTextColor(28, 7, 112);
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'bold');
+        doc.text(sku?.name || skuId, rightColX + 5, currentY + 7);
+        
+        doc.setFillColor(240, 245, 255);
+        doc.roundedRect(rightColX + colWidth - 25, currentY + 2.5, 20, 5, 1, 1, 'F');
+        doc.setTextColor(100, 120, 255);
+        doc.setFontSize(6);
+        doc.text(skuId, rightColX + colWidth - 15, currentY + 6, { align: 'center' });
+        
+        let itemY = currentY + 14;
+        let itemX = rightColX + 5;
+        needsEntries.forEach(([rmId, amount], idx) => {
+          const rm = rawMaterials.find(m => m.id === rmId);
+          doc.setTextColor(150, 150, 150);
+          doc.setFontSize(6);
+          doc.setFont('helvetica', 'normal');
+          doc.text(rm?.name || rmId, itemX, itemY);
+          
+          doc.setTextColor(50, 50, 50);
+          doc.setFont('helvetica', 'bold');
+          doc.text(`${Math.ceil(amount).toLocaleString()} ${rm?.usageUnit || ''}`, itemX + (colWidth/2) - 5, itemY, { align: 'right' });
+          
+          if (idx % 2 === 0) {
+            itemX = rightColX + (colWidth / 2) + 5;
+          } else {
+            itemX = rightColX + 5;
+            itemY += 8;
+          }
+        });
+        
+        currentY += cardHeight + 6;
+      });
+    });
+
+    doc.save("Riwayat_RM_Harian.pdf");
+  };
+
   const handleDownloadSingleExcel = (req: SavedRMRequirement) => {
     const dataToExport: any[] = [];
     
@@ -351,6 +625,138 @@ const RMHistory: React.FC<RMHistoryProps> = ({ history = [], rawMaterials = [], 
     XLSX.writeFile(workbook, `Kebutuhan_RM_${req.id}.xlsx`);
   };
 
+  const handleDownloadSinglePDF = (req: SavedRMRequirement) => {
+    const doc = new jsPDF({ orientation: 'landscape' });
+    const batchInfo = getBatchInfo(req);
+    const dateStr = parseSafeDate(req.startDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+
+    // Header
+    doc.setFillColor(28, 7, 112); // #1C0770
+    doc.roundedRect(14, 10, 12, 12, 3, 3, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`1`, 20, 18, { align: 'center' });
+    
+    doc.setTextColor(28, 7, 112);
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text(dateStr.toUpperCase(), 30, 16);
+    
+    doc.setTextColor(150, 150, 150);
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`DARI PRODUKSI: ${parseSafeDate(req.startDate).toLocaleDateString('id-ID', {day: 'numeric', month: 'long', year: 'numeric'}).toUpperCase()}`, 30, 21);
+    
+    doc.setTextColor(28, 7, 112);
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`${Object.keys(req.globalData || {}).length}`, 260, 16, { align: 'center' });
+    doc.text(`${batchInfo.total}`, 280, 16, { align: 'center' });
+    doc.setTextColor(150, 150, 150);
+    doc.setFontSize(7);
+    doc.text('ITEMS', 260, 21, { align: 'center' });
+    doc.text('BATCHES', 280, 21, { align: 'center' });
+
+    // Columns
+    const colWidth = 135;
+    const leftColX = 14;
+    const rightColX = 155;
+    let currentY = 35;
+
+    // Left Column: RINGKASAN MATERIAL
+    doc.setTextColor(180, 180, 180);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.text('RINGKASAN MATERIAL', leftColX, currentY);
+    currentY += 5;
+
+    Object.entries(req.globalData || {}).forEach(([id, amount]) => {
+      const rm = rawMaterials.find(m => m.id === id);
+      if (currentY > 180) {
+        doc.addPage();
+        currentY = 20;
+      }
+      doc.setFillColor(248, 250, 252);
+      doc.roundedRect(leftColX, currentY, colWidth, 10, 2, 2, 'F');
+      
+      doc.setTextColor(50, 50, 50);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.text(rm?.name || id, leftColX + 5, currentY + 6.5);
+      
+      doc.setTextColor(180, 180, 180);
+      doc.setFontSize(6);
+      doc.setFont('helvetica', 'bold');
+      doc.text(rm?.usageUnit || '', leftColX + colWidth - 5, currentY + 6.5, { align: 'right' });
+      
+      const unitWidth = doc.getTextWidth(rm?.usageUnit || '');
+      doc.setTextColor(28, 7, 112);
+      doc.setFontSize(9);
+      doc.text(`${Math.ceil(amount).toLocaleString()}`, leftColX + colWidth - 6 - unitWidth, currentY + 6.5, { align: 'right' });
+      
+      currentY += 12;
+    });
+
+    // Right Column: RINCIAN PER SKU
+    currentY = 35;
+    doc.setTextColor(180, 180, 180);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.text('RINCIAN PER SKU', rightColX, currentY);
+    currentY += 5;
+
+    Object.entries(req.perSkuData || {}).forEach(([skuId, needs]) => {
+      const sku = finishGoods.find(s => s.id === skuId);
+      const needsEntries = Object.entries(needs || {});
+      const cardHeight = 12 + (Math.ceil(needsEntries.length / 2) * 8);
+      
+      if (currentY + cardHeight > 190) {
+        doc.addPage();
+        currentY = 20;
+      }
+
+      doc.setDrawColor(240, 240, 240);
+      doc.roundedRect(rightColX, currentY, colWidth, cardHeight, 3, 3, 'D');
+      
+      doc.setTextColor(28, 7, 112);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.text(sku?.name || skuId, rightColX + 5, currentY + 7);
+      
+      doc.setFillColor(240, 245, 255);
+      doc.roundedRect(rightColX + colWidth - 25, currentY + 2.5, 20, 5, 1, 1, 'F');
+      doc.setTextColor(100, 120, 255);
+      doc.setFontSize(6);
+      doc.text(skuId, rightColX + colWidth - 15, currentY + 6, { align: 'center' });
+      
+      let itemY = currentY + 14;
+      let itemX = rightColX + 5;
+      needsEntries.forEach(([rmId, amount], idx) => {
+        const rm = rawMaterials.find(m => m.id === rmId);
+        doc.setTextColor(150, 150, 150);
+        doc.setFontSize(6);
+        doc.setFont('helvetica', 'normal');
+        doc.text(rm?.name || rmId, itemX, itemY);
+        
+        doc.setTextColor(50, 50, 50);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${Math.ceil(amount).toLocaleString()} ${rm?.usageUnit || ''}`, itemX + (colWidth/2) - 5, itemY, { align: 'right' });
+        
+        if (idx % 2 === 0) {
+          itemX = rightColX + (colWidth / 2) + 5;
+        } else {
+          itemX = rightColX + 5;
+          itemY += 8;
+        }
+      });
+      
+      currentY += cardHeight + 6;
+    });
+
+    doc.save(`Kebutuhan_RM_${req.id}.pdf`);
+  };
+
   return (
     <div className="p-4 md:p-8 space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
@@ -358,12 +764,20 @@ const RMHistory: React.FC<RMHistoryProps> = ({ history = [], rawMaterials = [], 
           <h1 className="text-3xl font-bold text-slate-900 tracking-tight">History Raw Material Needs</h1>
           <p className="text-slate-500 mt-1 text-sm font-medium italic">Arsip perhitungan logistik {mainTab === 'weekly' ? 'mingguan' : 'harian'}</p>
         </div>
-        <button 
-          onClick={mainTab === 'weekly' ? handleDownloadExcel : handleDownloadDailyExcel}
-          className="px-6 py-3 bg-emerald-500 text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-emerald-600 transition-all shadow-sm flex items-center gap-2"
-        >
-          <span>📥</span> Download Excel
-        </button>
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={mainTab === 'weekly' ? handleDownloadExcel : handleDownloadDailyExcel}
+            className="px-6 py-3 bg-emerald-500 text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-emerald-600 transition-all shadow-sm flex items-center gap-2"
+          >
+            <span>📥</span> Excel
+          </button>
+          <button 
+            onClick={mainTab === 'weekly' ? handleDownloadPDF : handleDownloadDailyPDF}
+            className="px-6 py-3 bg-rose-500 text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-rose-600 transition-all shadow-sm flex items-center gap-2"
+          >
+            <span>📄</span> PDF
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -571,7 +985,13 @@ const RMHistory: React.FC<RMHistoryProps> = ({ history = [], rawMaterials = [], 
                      onClick={() => handleDownloadSingleExcel(selectedReq)}
                      className="px-6 py-4 bg-emerald-500 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-emerald-600 flex items-center gap-2 shadow-lg shadow-emerald-100 transition-all"
                    >
-                     <span>📥</span> Export Excel
+                     <span>📥</span> Excel
+                   </button>
+                   <button 
+                     onClick={() => handleDownloadSinglePDF(selectedReq)}
+                     className="px-6 py-4 bg-rose-500 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-rose-600 flex items-center gap-2 shadow-lg shadow-rose-100 transition-all"
+                   >
+                     <span>📄</span> PDF
                    </button>
                    <button onClick={() => { setSelectedReq(null); setViewMode('weekly'); }} className="px-6 py-4 bg-slate-100 text-slate-500 rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-slate-200">Close</button>
                 </div>
