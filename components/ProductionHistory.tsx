@@ -283,8 +283,14 @@ const ProductionHistory: React.FC<ProductionHistoryProps> = ({ history = [], fin
       };
     })
     .filter(item => item.totalBatches > 0)
-    .sort((a, b) => b.totalBatches - a.totalBatches);
-  }, [selectedSchedule, finishGoods]);
+    .sort((a, b) => {
+      if (detailTab === 'batch') {
+        return b.totalBatches - a.totalBatches;
+      } else {
+        return b.totalPacks - a.totalPacks;
+      }
+    });
+  }, [selectedSchedule, finishGoods, detailTab]);
 
   const handleDownloadDailyExcel = () => {
     const dataToExport: any[] = [];
