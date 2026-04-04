@@ -283,7 +283,7 @@ const ProductionHistory: React.FC<ProductionHistoryProps> = ({ history = [], fin
       };
     })
     .filter(item => item.totalBatches > 0)
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .sort((a, b) => b.totalBatches - a.totalBatches);
   }, [selectedSchedule, finishGoods]);
 
   const handleDownloadDailyExcel = () => {
