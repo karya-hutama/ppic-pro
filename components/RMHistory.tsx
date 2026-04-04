@@ -79,8 +79,8 @@ const RMHistory: React.FC<RMHistoryProps> = ({ history = [], rawMaterials = [], 
   const [mainTab, setMainTab] = useState<'weekly' | 'daily'>('weekly');
   const [selectedReq, setSelectedReq] = useState<SavedRMRequirement | null>(null);
   const [viewMode, setViewMode] = useState<'weekly' | 'daily'>('weekly');
-  const [dailyStartDate, setDailyStartDate] = useState<string>('');
-  const [dailyEndDate, setDailyEndDate] = useState<string>('');
+  const [filterStart, setFilterStart] = useState<string>('');
+  const [filterEnd, setFilterEnd] = useState<string>('');
 
   const getDailyData = useCallback((req: SavedRMRequirement): Array<{
     date: string;
@@ -179,16 +179,33 @@ const RMHistory: React.FC<RMHistoryProps> = ({ history = [], rawMaterials = [], 
     return dailyList.sort((a, b) => new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime());
   }, [history, getDailyData]);
 
-  const filteredDailyData = useMemo(() => {
-    let data = allDailyData;
-    if (dailyStartDate) {
-      data = data.filter(d => d.rawDate >= dailyStartDate);
+  const filteredWeeklyHistory = useMemo(() => {
+    let data = [...(history || [])].sort((a, b) => {
+      const dateA = formatDateToISO(a.startDate);
+      const dateB = formatDateToISO(b.startDate);
+      if (dateA !== dateB) return dateB.localeCompare(dateA);
+      return (b.createdAt || '').localeCompare(a.createdAt || '');
+    });
+
+    if (filterStart) {
+      data = data.filter(h => formatDateToISO(h.startDate) >= filterStart);
     }
-    if (dailyEndDate) {
-      data = data.filter(d => d.rawDate <= dailyEndDate);
+    if (filterEnd) {
+      data = data.filter(h => formatDateToISO(h.startDate) <= filterEnd);
     }
     return data;
-  }, [allDailyData, dailyStartDate, dailyEndDate]);
+  }, [history, filterStart, filterEnd]);
+
+  const filteredDailyData = useMemo(() => {
+    let data = allDailyData;
+    if (filterStart) {
+      data = data.filter(d => d.rawDate >= filterStart);
+    }
+    if (filterEnd) {
+      data = data.filter(d => d.rawDate <= filterEnd);
+    }
+    return data;
+  }, [allDailyData, filterStart, filterEnd]);
 
   const getBatchInfo = (req: SavedRMRequirement) => {
     // Priority 1: Use stored values if they exist
@@ -365,48 +382,46 @@ const RMHistory: React.FC<RMHistoryProps> = ({ history = [], rawMaterials = [], 
           </button>
         </div>
 
-        {mainTab === 'daily' && (
-          <div className="flex items-center gap-3 bg-white p-2 rounded-2xl border border-slate-100 shadow-sm">
-            <div className="flex items-center gap-2 px-3">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Dari:</span>
-              <input 
-                type="date" 
-                value={dailyStartDate}
-                onChange={(e) => setDailyStartDate(e.target.value)}
-                className="text-xs font-bold text-slate-700 bg-transparent border-none focus:ring-0 p-0 cursor-pointer"
-              />
-            </div>
-            <div className="w-px h-6 bg-slate-200"></div>
-            <div className="flex items-center gap-2 px-3">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Sampai:</span>
-              <input 
-                type="date" 
-                value={dailyEndDate}
-                onChange={(e) => setDailyEndDate(e.target.value)}
-                className="text-xs font-bold text-slate-700 bg-transparent border-none focus:ring-0 p-0 cursor-pointer"
-              />
-            </div>
-            {(dailyStartDate || dailyEndDate) && (
-              <button 
-                onClick={() => { setDailyStartDate(''); setDailyEndDate(''); }}
-                className="w-6 h-6 flex items-center justify-center rounded-full bg-slate-100 text-slate-400 hover:bg-slate-200 hover:text-slate-600 transition-colors ml-1"
-              >
-                ✕
-              </button>
-            )}
+        <div className="flex items-center gap-3 bg-white p-2 rounded-2xl border border-slate-100 shadow-sm">
+          <div className="flex items-center gap-2 px-3">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Dari:</span>
+            <input 
+              type="date" 
+              value={filterStart}
+              onChange={(e) => setFilterStart(e.target.value)}
+              className="text-xs font-bold text-slate-700 bg-transparent border-none focus:ring-0 p-0 cursor-pointer"
+            />
           </div>
-        )}
+          <div className="w-px h-6 bg-slate-200"></div>
+          <div className="flex items-center gap-2 px-3">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Sampai:</span>
+            <input 
+              type="date" 
+              value={filterEnd}
+              onChange={(e) => setFilterEnd(e.target.value)}
+              className="text-xs font-bold text-slate-700 bg-transparent border-none focus:ring-0 p-0 cursor-pointer"
+            />
+          </div>
+          {(filterStart || filterEnd) && (
+            <button 
+              onClick={() => { setFilterStart(''); setFilterEnd(''); }}
+              className="w-6 h-6 flex items-center justify-center rounded-full bg-slate-100 text-slate-400 hover:bg-slate-200 hover:text-slate-600 transition-colors ml-1"
+            >
+              ✕
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4">
         {mainTab === 'weekly' ? (
-          (history || []).length === 0 ? (
+          filteredWeeklyHistory.length === 0 ? (
             <div className="bg-white p-20 rounded-[40px] border border-dashed border-slate-200 text-center">
               <span className="text-5xl block mb-4 opacity-20">📊</span>
               <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Belum ada riwayat kebutuhan ditemukan</p>
             </div>
           ) : (
-            history.map(item => (
+            filteredWeeklyHistory.map(item => (
               <div key={item.id} className="bg-white p-6 md:p-8 rounded-[40px] border border-slate-100 shadow-sm hover:shadow-md transition-all group">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                   <div className="flex items-center gap-6">

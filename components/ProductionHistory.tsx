@@ -155,18 +155,22 @@ const ProductionHistory: React.FC<ProductionHistoryProps> = ({ history = [], fin
       date: string;
       rawDate: string;
       dayName: string;
-      perSku: Record<string, { batches: number; packs: number }>;
+      perSku: Record<string, { batches: number; packs: number; weeklyTarget: number; weeklyTotalBatches: number }>;
     }[] = [];
 
     safeHistory.forEach(schedule => {
       const dates = getScheduleDates(schedule.startDate);
       let scheduleMap: any = schedule.data || {};
+      let targetMap: any = schedule.targets || {};
       if (typeof scheduleMap === 'string') {
         try { scheduleMap = JSON.parse(scheduleMap); } catch (e) { scheduleMap = {}; }
       }
+      if (typeof targetMap === 'string') {
+        try { targetMap = JSON.parse(targetMap); } catch (e) { targetMap = {}; }
+      }
 
       dates.forEach((day, dayIdx) => {
-        const perSku: Record<string, { batches: number; packs: number }> = {};
+        const perSku: Record<string, { batches: number; packs: number; weeklyTarget: number; weeklyTotalBatches: number }> = {};
         let hasData = false;
 
         finishGoods.forEach(fg => {
@@ -176,10 +180,15 @@ const ProductionHistory: React.FC<ProductionHistoryProps> = ({ history = [], fin
             dailyBatches = rawBatchValues.map(v => Number(v) || 0);
           }
           const batches = dailyBatches[dayIdx] || 0;
+          const weeklyTotalBatches = dailyBatches.reduce((a, b) => a + b, 0);
+          const weeklyTarget = Number(targetMap[fg.id]) || 0;
+
           if (batches > 0) {
             perSku[fg.id] = {
               batches,
-              packs: batches * (fg.qtyPerBatch || 1)
+              packs: batches * (fg.qtyPerBatch || 1),
+              weeklyTarget,
+              weeklyTotalBatches
             };
             hasData = true;
           }
@@ -250,6 +259,7 @@ const ProductionHistory: React.FC<ProductionHistoryProps> = ({ history = [], fin
       const totalPacks = dailyPacks.reduce((a, b) => a + b, 0);
       
       const referenceTarget = Number(targetMap[id]) || 0;
+      const shortfall = Math.max(0, referenceTarget - totalBatches);
       
       let keterangan = "Tanpa Target";
       if (referenceTarget > 0) {
@@ -267,6 +277,8 @@ const ProductionHistory: React.FC<ProductionHistoryProps> = ({ history = [], fin
         totalPacks, 
         keterangan, 
         referenceTarget,
+        shortfall,
+        qtyPerBatch,
         isDeleted: !skuInMaster 
       };
     })
@@ -287,7 +299,12 @@ const ProductionHistory: React.FC<ProductionHistoryProps> = ({ history = [], fin
           'Product/SKU': sku?.name || skuId,
           'SKU ID': skuId,
           'Batches': data.batches,
-          'Estimasi Packs': data.packs
+          'Estimasi Packs': data.packs,
+          'Target Mingguan (Batch)': data.weeklyTarget,
+          'Target Mingguan (Packs)': data.weeklyTarget * (sku?.qtyPerBatch || 1),
+          'Total Batch Minggu Ini': data.weeklyTotalBatches,
+          'Kekurangan Target (Batch)': Math.max(0, data.weeklyTarget - data.weeklyTotalBatches),
+          'Kekurangan Target (Packs)': Math.max(0, data.weeklyTarget - data.weeklyTotalBatches) * (sku?.qtyPerBatch || 1)
         });
       });
     });
@@ -312,11 +329,13 @@ const ProductionHistory: React.FC<ProductionHistoryProps> = ({ history = [], fin
     doc.setTextColor(100);
     doc.text(`Periode: ${dateStr}`, 14, 22);
     
-    const head = [['Produk SKU', ...selectedDates.map(d => `${d.dayName}\n${d.formatted}`), detailTab === 'batch' ? 'Total Batch' : 'Total Packs', 'Status Target']];
+    const head = [['Produk SKU', ...selectedDates.map(d => `${d.dayName}\n${d.formatted}`), detailTab === 'batch' ? 'Total Batch' : 'Total Packs', 'Target', 'Kekurangan', 'Status Target']];
     const body = detailData.map(d => [
       d.name,
       ...(detailTab === 'batch' ? d.dailyBatches : d.dailyPacks.map(p => p.toLocaleString())),
       (detailTab === 'batch' ? d.totalBatches : d.totalPacks.toLocaleString()),
+      (detailTab === 'batch' ? d.referenceTarget : d.referenceTarget * d.qtyPerBatch) || '-',
+      (detailTab === 'batch' ? d.shortfall : d.shortfall * d.qtyPerBatch) || '-',
       d.keterangan
     ]);
 
@@ -481,6 +500,22 @@ const ProductionHistory: React.FC<ProductionHistoryProps> = ({ history = [], fin
                               <div className="text-[8px] font-bold text-slate-400 uppercase">Packs</div>
                             </div>
                           </div>
+                          <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-dashed border-slate-100">
+                            <div className="text-center">
+                              <div className="text-xs font-black text-slate-600">
+                                {data.weeklyTarget || '-'} 
+                                {data.weeklyTarget > 0 && <span className="text-[8px] text-slate-400 ml-1">({(data.weeklyTarget * (sku?.qtyPerBatch || 1)).toLocaleString()} P)</span>}
+                              </div>
+                              <div className="text-[8px] font-bold text-slate-400 uppercase">Target</div>
+                            </div>
+                            <div className="text-center">
+                              <div className={`text-xs font-black ${data.weeklyTarget - data.weeklyTotalBatches > 0 ? 'text-rose-500' : 'text-slate-300'}`}>
+                                {Math.max(0, data.weeklyTarget - data.weeklyTotalBatches) || '-'}
+                                {data.weeklyTarget - data.weeklyTotalBatches > 0 && <span className="text-[8px] opacity-60 ml-1">({(Math.max(0, data.weeklyTarget - data.weeklyTotalBatches) * (sku?.qtyPerBatch || 1)).toLocaleString()} P)</span>}
+                              </div>
+                              <div className="text-[8px] font-bold text-slate-400 uppercase">Kurang</div>
+                            </div>
+                          </div>
                         </div>
                       );
                     })}
@@ -541,6 +576,8 @@ const ProductionHistory: React.FC<ProductionHistoryProps> = ({ history = [], fin
                           </th>
                         ))}
                         <th className="px-8 py-5 text-center font-black text-slate-600 border-r border-slate-100">Total</th>
+                        <th className="px-8 py-5 text-center font-black text-slate-600 border-r border-slate-100">Target</th>
+                        <th className="px-8 py-5 text-center font-black text-rose-600 border-r border-slate-100">Kurang</th>
                         <th className="px-8 py-5 text-center font-black text-indigo-600">Keterangan</th>
                       </tr>
                     </thead>
@@ -571,6 +608,12 @@ const ProductionHistory: React.FC<ProductionHistoryProps> = ({ history = [], fin
                               })}
                               <td className={`px-8 py-5 text-center border-r border-slate-100 font-black bg-slate-50/10 ${detailTab === 'batch' ? 'text-slate-900' : 'text-emerald-600'}`}>
                                 {(detailTab === 'batch' ? d.totalBatches : d.totalPacks).toLocaleString()}
+                              </td>
+                              <td className="px-8 py-5 text-center border-r border-slate-100 font-black text-slate-600">
+                                {(detailTab === 'batch' ? d.referenceTarget : d.referenceTarget * d.qtyPerBatch).toLocaleString() || '-'}
+                              </td>
+                              <td className={`px-8 py-5 text-center border-r border-slate-100 font-black ${d.shortfall > 0 ? 'text-rose-600' : 'text-slate-200'}`}>
+                                {(detailTab === 'batch' ? d.shortfall : d.shortfall * d.qtyPerBatch).toLocaleString() || '-'}
                               </td>
                               <td className="px-8 py-5 text-center">
                                  <span className={`inline-block px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${
