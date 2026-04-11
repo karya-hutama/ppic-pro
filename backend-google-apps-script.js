@@ -39,7 +39,7 @@ function doPost(e) {
     sheet.appendRow([
       data.id || Utilities.getUuid(), 
       JSON.stringify(data.data), 
-      data.startDate, 
+      "'" + data.startDate, 
       data.createdAt, 
       data.totalBatches, 
       JSON.stringify(data.targets || {})
@@ -54,7 +54,7 @@ function doPost(e) {
       // Robust ID comparison
       if (String(vals[i][0]).trim() === String(data.id).trim()) {
         sheet.getRange(i + 1, 2).setValue(JSON.stringify(data.data));
-        sheet.getRange(i + 1, 3).setValue(data.startDate);
+        sheet.getRange(i + 1, 3).setValue("'" + data.startDate);
         sheet.getRange(i + 1, 4).setValue(data.createdAt);
         sheet.getRange(i + 1, 5).setValue(data.totalBatches);
         sheet.getRange(i + 1, 6).setValue(JSON.stringify(data.targets || {}));
@@ -92,7 +92,7 @@ function doPost(e) {
 
   if (action === "saveRMRequirement") {
     const sheet = ss.getSheetByName("rmHistory");
-    sheet.appendRow([Utilities.getUuid(), data.startDate, data.createdAt, JSON.stringify(data.globalData), JSON.stringify(data.perSkuData)]);
+    sheet.appendRow([Utilities.getUuid(), "'" + data.startDate, data.createdAt, JSON.stringify(data.globalData), JSON.stringify(data.perSkuData)]);
   }
 
   if (action === "createRO") {
@@ -144,8 +144,12 @@ function getSheetData(ss, name) {
         if (displayVal && displayVal !== "") {
           val = displayVal;
         } else {
-          // Fallback to formatting if display value is missing
-          val = Utilities.formatDate(val, ss.getSpreadsheetTimeZone(), "yyyy-MM-dd");
+          // Fallback to manual formatting to avoid timezone shifts
+          // This gets the calendar date as seen in the script's timezone
+          var y = val.getFullYear();
+          var m = ("0" + (val.getMonth() + 1)).slice(-2);
+          var d = ("0" + val.getDate()).slice(-2);
+          val = y + "-" + m + "-" + d;
         }
       }
       obj[key] = val;

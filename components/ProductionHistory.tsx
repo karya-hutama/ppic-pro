@@ -16,13 +16,21 @@ const parseSafeDate = (dateInput: any): Date => {
   }
 
   if (typeof dateInput === 'string') {
-    // 1. Handle ISO strings with timezone (e.g., "2026-03-23T17:00:00.000Z")
-    // This is crucial because GAS stringifies Date objects to UTC ISO strings.
-    if (dateInput.includes('T') && (dateInput.includes('Z') || dateInput.includes('+'))) {
-      const d = new Date(dateInput);
-      if (!isNaN(d.getTime())) {
-        // Return local midnight for that specific calendar day
-        return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
+    // 1. Handle ISO strings or strings with 'T'
+    // We want the calendar date part without timezone shifts
+    if (dateInput.includes('T')) {
+      const datePart = dateInput.split('T')[0];
+      const parts = datePart.split(/[-/]/);
+      if (parts.length === 3) {
+        let y, m, d;
+        if (parts[0].length === 4) {
+          y = parseInt(parts[0]); m = parseInt(parts[1]); d = parseInt(parts[2]);
+        } else {
+          d = parseInt(parts[0]); m = parseInt(parts[1]); y = parseInt(parts[2]);
+        }
+        if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+          return new Date(y, m - 1, d, 0, 0, 0, 0);
+        }
       }
     }
 
